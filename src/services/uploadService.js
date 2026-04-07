@@ -1,0 +1,196 @@
+import { v2 as cloudinary } from 'cloudinary';
+import { stripHtml } from '../utils/sanitize.js';
+import Upload from '../models/Upload.js';
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const ALLOWED_AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'webm'];
+const UPLOAD_FOLDER = 'lyrics-syncer/audio';
+
+/**
+ * Check if Cloudinary is configured.
+ */
+export function isCloudinaryConfigured() {
+  return !!(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET
+  );
+}
+
+/**
+ * Generate a signed upload signature for audio files.
+ * @param {{ fileName: string, fileSize: number }} data
+ * @returns {{ signature, timestamp, cloudName, apiKey, folder, resourceType }|{ error: string, status: number }}
+ */
+export function generateAudioSignature(data) {
+  if (!isCloudinaryConfigured()) {
+    return { error: 'Upload service not configured', status: 503 };
+  }
+
+  const { fileName, fileSize } = data;
+  const sanitizedName = stripHtml(fileName);
+  const ext = sanitizedName.split('.').pop()?.toLowerCase();
+
+  if (!ext || !ALLOWED_AUDIO_EXTENSIONS.includes(ext)) {
+    return {
+      error: `Invalid file type. Allowed: ${ALLOWED_AUDIO_EXTENSIONS.join(', ')}`,
+      status: 400,
+    };
+  }
+
+  if (fileSize > MAX_FILE_SIZE) {
+    return { error: `File too large. Max: ${MAX_FILE_SIZE / 1024 / 1024} MB`, status: 400 };
+  }
+
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const timestamp = Math.round(Date.now() / 1000);
+  const params = { timestamp, folder: UPLOAD_FOLDER };
+  const signature = cloudinary.utils.api_sign_request(params, apiSecret);
+
+  return {
+    signature,
+    timestamp,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    folder: UPLOAD_FOLDER,
+    resourceType: 'video',
+  };
+}
+
+/**
+ * Generate signed upload signature for avatar images.
+ */
+export function generateAvatarSignature() {
+  if (!isCloudinaryConfigured()) {
+    return { error: 'Upload service not configured', status: 503 };
+  }
+
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const timestamp = Math.round(Date.now() / 1000);
+  const params = {
+    timestamp,
+    folder: 'lyrics-syncer/avatars',
+    transformation: 'c_fill,w_200,h_200,g_face',
+  };
+  const signature = cloudinary.utils.api_sign_request(params, apiSecret);
+
+  return {
+    signature,
+    timestamp,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    folder: 'lyrics-syncer/avatars',
+    resourceType: 'image',
+  };
+}
+
+/**
+ * Generate signed upload signature for cover images.
+ */
+export function generateCoverSignature() {
+  if (!isCloudinaryConfigured()) {
+    return { error: 'Upload service not configured', status: 503 };
+  }
+
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const timestamp = Math.round(Date.now() / 1000);
+  const params = {
+    timestamp,
+    folder: 'lyrics-syncer/covers',
+    transformation: 'c_fill,w_400,h_400',
+  };
+  const signature = cloudinary.utils.api_sign_request(params, apiSecret);
+
+  return {
+    signature,
+    timestamp,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    folder: 'lyrics-syncer/covers',
+    resourceType: 'image',
+  };
+}
+
+/**
+ * List a user's uploaded media.
+ * @param {string} userId
+ * @returns {object[]}
+ */
+export async function listMedia(userId) {
+  const uploads = await Upload.find({ userId })
+    .sort({ updatedAt: -1 })
+    .limit(50)
+    .lean();
+
+  return uploads.map((u) => ({
+    id: u._id.toString(),
+    source: u.source,
+    cloudinaryUrl: u.cloudinaryUrl,
+    publicId: u.publicId,
+    youtubeUrl: u.youtubeUrl,
+    spotifyTrackId: u.spotifyTrackId,
+    fileName: u.fileName,
+    title: u.title,
+    duration: u.duration,
+    createdAt: u.createdAt,
+  }));
+}
+
+/**
+ * Create or upsert a media upload record.
+ * @param {string} userId
+ * @param {object} data
+ * @returns {object} Public upload object
+ */
+export async function createMedia(userId, data) {
+  const { source, cloudinaryUrl, publicId, youtubeUrl, spotifyTrackId, fileName, title, duration } = data;
+
+  const query = { userId, source };
+  if (source === 'cloudinary' && cloudinaryUrl) query.cloudinaryUrl = cloudinaryUrl;
+  else if (source === 'youtube' && youtubeUrl) query.youtubeUrl = youtubeUrl;
+  else if (source === 'spotify' && spotifyTrackId) query.spotifyTrackId = spotifyTrackId;
+
+  const upload = await Upload.findOneAndUpdate(
+    query,
+    {
+      userId,
+      source,
+      cloudinaryUrl: cloudinaryUrl || null,
+      publicId: publicId || null,
+      youtubeUrl: youtubeUrl || null,
+      spotifyTrackId: spotifyTrackId || null,
+      fileName: fileName || '',
+      title: title || fileName || '',
+      duration: duration || null,
+    },
+    { upsert: true, new: true }
+  );
+
+  return upload.toPublic();
+}
+
+/**
+ * Delete a media upload.
+ * @param {string} uploadId
+ * @param {string} userId
+ * @param {object} logger - Fastify logger
+ * @returns {{ error?: string, status?: number }}
+ */
+export async function deleteMedia(uploadId, userId, logger) {
+  const upload = await Upload.findById(uploadId);
+  if (!upload) return { error: 'Upload not found', status: 404 };
+  if (upload.userId.toString() !== userId) return { error: 'Not authorized', status: 403 };
+
+  // Delete from Cloudinary if applicable
+  if (upload.source === 'cloudinary' && upload.publicId && isCloudinaryConfigured()) {
+    try {
+      await cloudinary.uploader.destroy(upload.publicId, { resource_type: 'video' });
+      logger.info({ publicId: upload.publicId }, 'Cloudinary asset deleted');
+    } catch (err) {
+      logger.warn({ err, publicId: upload.publicId }, 'Failed to delete Cloudinary asset');
+    }
+  }
+
+  await upload.deleteOne();
+  return {};
+}

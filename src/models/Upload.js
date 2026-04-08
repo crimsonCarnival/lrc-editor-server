@@ -24,6 +24,8 @@ const uploadSchema = new mongoose.Schema(
     youtubeUrl: { type: String, default: null, maxlength: 500, set: urlSetter },
     // Spotify fields
     spotifyTrackId: { type: String, default: null, maxlength: 100 },
+    artist: { type: String, default: null, maxlength: 500, set: textSetter },
+    thumbnailUrl: { type: String, default: null, maxlength: 500, set: urlSetter },
     // Common
     fileName: { type: String, default: '', maxlength: 500, set: textSetter },
     title: { type: String, default: '', maxlength: 500, set: textSetter },
@@ -32,12 +34,12 @@ const uploadSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// One entry per unique media per user
+// Compound indexes for uniqueness and query performance
 uploadSchema.index({ userId: 1, source: 1, cloudinaryUrl: 1 }, { sparse: true });
 uploadSchema.index({ userId: 1, source: 1, youtubeUrl: 1 }, { sparse: true });
-uploadSchema.index({ userId: 1, spotifyTrackId: 1 }, { sparse: true });
-uploadSchema.index({ userId: 1, youtubeUrl: 1 }, { sparse: true });
-uploadSchema.index({ publicId: 1 }, { sparse: true });
+uploadSchema.index({ userId: 1, source: 1, spotifyTrackId: 1 }, { sparse: true });
+uploadSchema.index({ userId: 1, updatedAt: -1 }); // For listing user's uploads sorted by latest
+uploadSchema.index({ publicId: 1 }, { sparse: true }); // For Cloudinary cleanup
 
 uploadSchema.methods.toPublic = function () {
   const obj = this.toObject();

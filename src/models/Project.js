@@ -1,32 +1,8 @@
 import mongoose from 'mongoose';
 import { nanoid } from 'nanoid';
-import { stripHtml, sanitizeUrl } from '../utils/sanitize.js';
+import { stripHtml } from '../utils/sanitize.js';
 
 const textSetter = (v) => (typeof v === 'string' ? stripHtml(v) : v);
-const urlSetter = (v) => sanitizeUrl(v);
-
-// --- Subdocument: Audio (fallback for projects without an Upload reference) ---
-const audioSchema = new mongoose.Schema(
-  {
-    source: {
-      type: String,
-      enum: ['local', 'youtube', 'spotify'],
-      default: 'local',
-    },
-    cloudinaryUrl: { type: String, default: null, maxlength: 500, set: urlSetter },
-    publicId: { type: String, default: null, maxlength: 500 },
-    youtubeUrl: { type: String, default: null, maxlength: 500, set: urlSetter },
-    spotifyTrackId: {
-      type: String,
-      default: null,
-      maxlength: 100,
-      match: /^[a-zA-Z0-9]+$/,
-    },
-    duration: { type: Number, default: null },
-    fileName: { type: String, default: null, maxlength: 500, set: textSetter },
-  },
-  { _id: false }
-);
 
 // --- Subdocument: Editor State ---
 const stateSchema = new mongoose.Schema(
@@ -35,6 +11,23 @@ const stateSchema = new mongoose.Schema(
     activeLineIndex: { type: Number, default: 0 },
     playbackPosition: { type: Number, default: 0 },
     playbackSpeed: { type: Number, default: 1 },
+  },
+  { _id: false }
+);
+
+// --- Subdocument: Metadata ---
+const metadataSchema = new mongoose.Schema(
+  {
+    description: { type: String, default: '', maxlength: 2000, set: textSetter },
+    tags: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (v) => v.length <= 20,
+        message: 'Maximum 20 tags allowed',
+      },
+      set: (v) => (Array.isArray(v) ? v.map((t) => (typeof t === 'string' ? stripHtml(t).slice(0, 50) : t)) : v),
+    },
   },
   { _id: false }
 );
@@ -57,13 +50,13 @@ const projectSchema = new mongoose.Schema(
     },
     title: { type: String, default: '', maxlength: 500, set: textSetter },
 
-    // Audio: prefer audioId (ref Upload), fall back to embedded audio
-    audioId: {
+    // Audio reference to Upload collection (required)
+    uploadId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Upload',
       default: null,
+      index: true,
     },
-    audio: { type: audioSchema, default: () => ({}) },
 
     // Lyrics stored in separate Lyrics collection, linked by lyricsId
     lyricsId: {
@@ -73,6 +66,7 @@ const projectSchema = new mongoose.Schema(
     },
 
     state: { type: stateSchema, default: () => ({}) },
+    metadata: { type: metadataSchema, default: () => ({}) },
     type: {
       type: String,
       enum: ['temporary', 'saved'],

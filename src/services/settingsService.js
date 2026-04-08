@@ -43,14 +43,26 @@ export async function replaceSettings(userId, body) {
  */
 export async function patchSettings(userId, body) {
   const update = {};
-  for (const key of SETTINGS_CATEGORIES) {
-    if (body[key] !== undefined) {
-      // Use dot-notation so only the provided sub-keys are overwritten
-      for (const [subKey, value] of Object.entries(body[key])) {
-        update[`${key}.${subKey}`] = value;
+  
+  // Recursively flatten nested objects into dot-notation paths
+  const flatten = (obj, prefix = '') => {
+    for (const [key, value] of Object.entries(obj)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      
+      // Only process top-level categories
+      if (!prefix && !SETTINGS_CATEGORIES.includes(key)) continue;
+      
+      if (value && typeof value === 'object' && !Array.isArray(value) && prefix) {
+        // Recursively flatten nested objects (but not at top level)
+        flatten(value, path);
+      } else {
+        // Leaf value or array - set directly
+        update[path] = value;
       }
     }
-  }
+  };
+  
+  flatten(body);
 
   if (Object.keys(update).length === 0) {
     const existing = await Settings.findOne({ userId });

@@ -37,6 +37,7 @@ const compileLrcSchema = {
       },
       lineEndings: { type: 'string', enum: ['lf', 'crlf'] },
       includeSecondary: { type: 'boolean' },
+      wordPrecision: { type: 'string', enum: ['hundredths', 'thousandths'] },
     },
     required: ['lines'],
   },

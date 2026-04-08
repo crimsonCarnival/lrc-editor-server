@@ -30,9 +30,10 @@ export async function compileLrc(request, reply) {
     metadata = {},
     lineEndings = 'lf',
     includeSecondary = false,
+    wordPrecision,
   } = request.body;
 
-  const output = compileLRC(lines, includeTranslations, precision, metadata, lineEndings, includeSecondary);
+  const output = compileLRC(lines, includeTranslations, precision, metadata, lineEndings, includeSecondary, wordPrecision);
   return reply.send({ output, format: 'lrc' });
 }
 

@@ -34,11 +34,13 @@ export async function coverSignature(request, reply) {
 }
 
 /**
- * GET /uploads/media — list user's uploaded media.
+ * GET /uploads/media — list user's uploaded media with pagination.
+ * Query params: limit (default 50, max 100), offset (default 0)
  */
 export async function listMedia(request, reply) {
-  const uploads = await uploadService.listMedia(request.userId);
-  return reply.send({ uploads });
+  const { limit, offset } = request.query;
+  const result = await uploadService.listMedia(request.userId, { limit, offset });
+  return reply.send(result);
 }
 
 /**
@@ -59,3 +61,15 @@ export async function deleteMedia(request, reply) {
   }
   return reply.code(204).send();
 }
+
+/**
+ * PATCH /uploads/media/:id — update a media upload.
+ */
+export async function updateMedia(request, reply) {
+  const result = await uploadService.updateMedia(request.params.id, request.userId, request.body);
+  if (result.error) {
+    return reply.code(result.status).send({ error: result.error });
+  }
+  return reply.send({ upload: result });
+}
+

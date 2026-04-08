@@ -1,6 +1,5 @@
 import * as projectController from '../controllers/projectController.js';
 import {
-  audioSchema,
   stateSchema,
   lyricsSchema,
   projectIdParam,
@@ -8,13 +7,23 @@ import {
 
 // --- Validation schemas ---
 
+const metadataSchemaValidation = {
+  type: 'object',
+  properties: {
+    description: { type: 'string', maxLength: 2000 },
+    tags: { type: 'array', items: { type: 'string', maxLength: 50 }, maxItems: 20 },
+  },
+  additionalProperties: false,
+};
+
 const projectBodySchema = {
   type: 'object',
   properties: {
     title: { type: 'string', maxLength: 500 },
-    audio: audioSchema,
+    uploadId: { type: 'string', pattern: '^[a-f0-9]{24}$' }, // MongoDB ObjectId hex string
     lyrics: lyricsSchema,
     state: stateSchema,
+    metadata: metadataSchemaValidation,
     readOnly: { type: 'boolean' },
   },
   additionalProperties: false,
@@ -34,9 +43,10 @@ const patchProjectSchema = {
     type: 'object',
     properties: {
       title: { type: 'string', maxLength: 500 },
-      audio: audioSchema,
+      uploadId: { type: 'string', pattern: '^[a-f0-9]{24}$' },
       lyrics: lyricsSchema,
       state: stateSchema,
+      metadata: metadataSchemaValidation,
       readOnly: { type: 'boolean' },
       version: { type: 'integer', minimum: 0 },
     },
@@ -46,10 +56,10 @@ const patchProjectSchema = {
 };
 
 export default async function projectRoutes(fastify) {
-  fastify.post('/', { schema: createProjectSchema, preHandler: [fastify.optionalAuth] }, projectController.create);
+  fastify.post('/', { schema: createProjectSchema, preHandler: [fastify.requireAuth] }, projectController.create);
   fastify.get('/', { preHandler: [fastify.requireAuth] }, projectController.list);
   fastify.get('/:id', { schema: { params: projectIdParam }, preHandler: [fastify.optionalAuth] }, projectController.get);
-  fastify.put('/:id', { schema: updateProjectSchema, preHandler: [fastify.optionalAuth] }, projectController.update);
-  fastify.patch('/:id', { schema: patchProjectSchema, preHandler: [fastify.optionalAuth] }, projectController.patch);
+  fastify.put('/:id', { schema: updateProjectSchema, preHandler: [fastify.requireAuth] }, projectController.update);
+  fastify.patch('/:id', { schema: patchProjectSchema, preHandler: [fastify.requireAuth] }, projectController.patch);
   fastify.delete('/:id', { schema: { params: projectIdParam }, preHandler: [fastify.requireAuth] }, projectController.remove);
 }

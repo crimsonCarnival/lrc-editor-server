@@ -114,6 +114,11 @@ export async function updateProfile(userId, data, logger) {
 
   if (avatarUrl !== undefined && user.avatarPublicId && cloudName && apiKey && apiSecret) {
     try {
+      cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+      });
       await cloudinary.uploader.destroy(user.avatarPublicId, { resource_type: 'image' });
       logger.info({ publicId: user.avatarPublicId }, 'Old avatar deleted from Cloudinary');
     } catch (err) {

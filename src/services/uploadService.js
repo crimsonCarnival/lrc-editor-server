@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { stripHtml } from '../utils/sanitize.js';
 import Upload from '../models/Upload.js';
+import { fetchYouTubeTitle, fetchYouTubeMetadata } from '../utils/youtube.js';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 const ALLOWED_AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'webm'];
@@ -112,28 +113,45 @@ export function generateCoverSignature() {
 }
 
 /**
- * List a user's uploaded media.
+ * List a user's uploaded media with pagination support.
  * @param {string} userId
- * @returns {object[]}
+ * @param {object} options - Pagination options
+ * @param {number} options.limit - Max items to return (default: 50, max: 100)
+ * @param {number} options.offset - Number of items to skip (default: 0)
+ * @returns {{ uploads: object[], total: number, hasMore: boolean }}
  */
-export async function listMedia(userId) {
+export async function listMedia(userId, { limit = 50, offset = 0 } = {}) {
+  // Clamp limit to reasonable bounds
+  const clampedLimit = Math.min(Math.max(1, limit), 100);
+  const clampedOffset = Math.max(0, offset);
+
+  // Get total count for pagination metadata
+  const total = await Upload.countDocuments({ userId });
+
   const uploads = await Upload.find({ userId })
     .sort({ updatedAt: -1 })
-    .limit(50)
+    .skip(clampedOffset)
+    .limit(clampedLimit)
     .lean();
 
-  return uploads.map((u) => ({
-    id: u._id.toString(),
-    source: u.source,
-    cloudinaryUrl: u.cloudinaryUrl,
-    publicId: u.publicId,
-    youtubeUrl: u.youtubeUrl,
-    spotifyTrackId: u.spotifyTrackId,
-    fileName: u.fileName,
-    title: u.title,
-    duration: u.duration,
-    createdAt: u.createdAt,
-  }));
+  return {
+    uploads: uploads.map((u) => ({
+      id: u._id.toString(),
+      source: u.source,
+      cloudinaryUrl: u.cloudinaryUrl,
+      publicId: u.publicId,
+      youtubeUrl: u.youtubeUrl,
+      spotifyTrackId: u.spotifyTrackId,
+      artist: u.artist,
+      thumbnailUrl: u.thumbnailUrl,
+      fileName: u.fileName,
+      title: u.title,
+      duration: u.duration,
+      createdAt: u.createdAt,
+    })),
+    total,
+    hasMore: clampedOffset + uploads.length < total,
+  };
 }
 
 /**
@@ -143,12 +161,23 @@ export async function listMedia(userId) {
  * @returns {object} Public upload object
  */
 export async function createMedia(userId, data) {
-  const { source, cloudinaryUrl, publicId, youtubeUrl, spotifyTrackId, fileName, title, duration } = data;
+  const { source, cloudinaryUrl, publicId, youtubeUrl, spotifyTrackId, artist, thumbnailUrl, fileName, title, duration } = data;
 
   const query = { userId, source };
   if (source === 'cloudinary' && cloudinaryUrl) query.cloudinaryUrl = cloudinaryUrl;
   else if (source === 'youtube' && youtubeUrl) query.youtubeUrl = youtubeUrl;
   else if (source === 'spotify' && spotifyTrackId) query.spotifyTrackId = spotifyTrackId;
+
+  // Fetch YouTube title and duration if not provided
+  let finalTitle = title || fileName || '';
+  let finalDuration = duration || null;
+  if (source === 'youtube' && youtubeUrl && (!title || !duration)) {
+    const metadata = await fetchYouTubeMetadata(youtubeUrl);
+    if (metadata) {
+      if (!title && metadata.title) finalTitle = metadata.title;
+      if (!duration && metadata.duration) finalDuration = metadata.duration;
+    }
+  }
 
   const upload = await Upload.findOneAndUpdate(
     query,
@@ -159,9 +188,11 @@ export async function createMedia(userId, data) {
       publicId: publicId || null,
       youtubeUrl: youtubeUrl || null,
       spotifyTrackId: spotifyTrackId || null,
+      artist: artist || null,
+      thumbnailUrl: thumbnailUrl || null,
       fileName: fileName || '',
-      title: title || fileName || '',
-      duration: duration || null,
+      title: finalTitle,
+      duration: finalDuration,
     },
     { upsert: true, new: true }
   );
@@ -184,6 +215,11 @@ export async function deleteMedia(uploadId, userId, logger) {
   // Delete from Cloudinary if applicable
   if (upload.source === 'cloudinary' && upload.publicId && isCloudinaryConfigured()) {
     try {
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+      });
       await cloudinary.uploader.destroy(upload.publicId, { resource_type: 'video' });
       logger.info({ publicId: upload.publicId }, 'Cloudinary asset deleted');
     } catch (err) {
@@ -194,3 +230,39 @@ export async function deleteMedia(uploadId, userId, logger) {
   await upload.deleteOne();
   return {};
 }
+
+/**
+ * Update a media upload (e.g., title).
+ * @param {string} uploadId
+ * @param {string} userId
+ * @param {object} updates - Fields to update
+ * @returns {object|{ error: string, status: number }}
+ */
+export async function updateMedia(uploadId, userId, updates) {
+  const upload = await Upload.findById(uploadId);
+  if (!upload) return { error: 'Upload not found', status: 404 };
+  if (upload.userId.toString() !== userId) return { error: 'Not authorized', status: 403 };
+
+  // Only allow updating specific fields
+  const allowedFields = ['title', 'fileName', 'duration'];
+  const updateData = {};
+  
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      updateData[field] = updates[field];
+    }
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return { error: 'No valid fields to update', status: 400 };
+  }
+
+  const updated = await Upload.findByIdAndUpdate(
+    uploadId,
+    { $set: updateData },
+    { new: true }
+  );
+
+  return updated.toPublic();
+}
+

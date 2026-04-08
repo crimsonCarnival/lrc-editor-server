@@ -9,8 +9,8 @@ export const lineItemSchema = {
     text: { type: 'string', maxLength: 2000 },
     timestamp: { type: ['number', 'null'] },
     endTime: { type: ['number', 'null'] },
-    secondary: { type: 'string', maxLength: 2000 },
-    translation: { type: 'string', maxLength: 2000 },
+    secondary: { type: ['string', 'null'], maxLength: 2000 },
+    translation: { type: ['string', 'null'], maxLength: 2000 },
     id: { type: 'string', maxLength: 50 },
     words: {
       type: 'array',
@@ -38,20 +38,6 @@ export const lineItemSchema = {
 
 export const linesArray = { type: 'array', items: lineItemSchema, maxItems: 5000 };
 
-export const audioSchema = {
-  type: 'object',
-  properties: {
-    source: { type: 'string', enum: ['local', 'youtube', 'spotify'] },
-    cloudinaryUrl: { type: ['string', 'null'], maxLength: 500, pattern: '^https?://' },
-    publicId: { type: ['string', 'null'], maxLength: 500 },
-    youtubeUrl: { type: ['string', 'null'], maxLength: 500, pattern: '^https?://' },
-    spotifyTrackId: { type: ['string', 'null'], maxLength: 100, pattern: '^[a-zA-Z0-9]+$' },
-    duration: { type: ['number', 'null'] },
-    fileName: { type: ['string', 'null'], maxLength: 500 },
-  },
-  additionalProperties: false,
-};
-
 export const stateSchema = {
   type: 'object',
   properties: {
@@ -67,6 +53,7 @@ export const lyricsSchema = {
   type: 'object',
   properties: {
     editorMode: { type: 'string', enum: ['lrc', 'srt', 'words'] },
+    language: { type: ['string', 'null'], maxLength: 10 },
     lines: linesArray,
     // Partial update fields (PATCH)
     lineIndex: { type: 'integer', minimum: 0 },

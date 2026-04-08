@@ -22,6 +22,8 @@ const createMediaSchema = {
       publicId: { type: ['string', 'null'], maxLength: 500 },
       youtubeUrl: { type: ['string', 'null'], maxLength: 500 },
       spotifyTrackId: { type: ['string', 'null'], maxLength: 100 },
+      artist: { type: ['string', 'null'], maxLength: 500 },
+      thumbnailUrl: { type: ['string', 'null'], maxLength: 500 },
       fileName: { type: 'string', maxLength: 500 },
       title: { type: 'string', maxLength: 500 },
       duration: { type: ['number', 'null'] },
@@ -31,11 +33,34 @@ const createMediaSchema = {
   },
 };
 
+const updateMediaSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', maxLength: 500 },
+      fileName: { type: 'string', maxLength: 500 },
+      duration: { type: 'number' },
+    },
+    additionalProperties: false,
+  },
+};
+
+const listMediaSchema = {
+  querystring: {
+    type: 'object',
+    properties: {
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+      offset: { type: 'integer', minimum: 0, default: 0 },
+    },
+  },
+};
+
 export default async function uploadRoutes(fastify) {
   fastify.post('/signature', { schema: signatureSchema, preHandler: [fastify.requireAuth] }, uploadController.audioSignature);
   fastify.post('/avatar-signature', { preHandler: [fastify.requireAuth] }, uploadController.avatarSignature);
   fastify.post('/cover-signature', { preHandler: [fastify.requireAuth] }, uploadController.coverSignature);
-  fastify.get('/media', { preHandler: [fastify.requireAuth] }, uploadController.listMedia);
+  fastify.get('/media', { schema: listMediaSchema, preHandler: [fastify.requireAuth] }, uploadController.listMedia);
   fastify.post('/media', { schema: createMediaSchema, preHandler: [fastify.requireAuth] }, uploadController.createMedia);
+  fastify.patch('/media/:id', { schema: updateMediaSchema, preHandler: [fastify.requireAuth] }, uploadController.updateMedia);
   fastify.delete('/media/:id', { preHandler: [fastify.requireAuth] }, uploadController.deleteMedia);
 }

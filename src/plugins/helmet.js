@@ -3,7 +3,8 @@ import fastifyHelmet from '@fastify/helmet';
 
 async function helmetPlugin(fastify) {
   await fastify.register(fastifyHelmet, {
-    contentSecurityPolicy: false, // API server, no HTML responses
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: false, // Allow OAuth callback popup to postMessage to opener
   });
 }
 

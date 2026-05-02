@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { stripHtml } from '../utils/sanitize.js';
 import Upload from '../models/Upload.js';
+import Project from '../models/Project.js';
 import { fetchYouTubeTitle, fetchYouTubeMetadata } from '../utils/youtube.js';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
@@ -264,5 +265,28 @@ export async function updateMedia(uploadId, userId, updates) {
   );
 
   return updated.toPublic();
+}
+
+/**
+ * Get a specific media upload and its associated projects.
+ * @param {string} uploadId
+ * @param {string} userId
+ * @returns {object|{ error: string, status: number }}
+ */
+export async function getMedia(uploadId, userId) {
+  const upload = await Upload.findById(uploadId);
+  if (!upload) return { error: 'Upload not found', status: 404 };
+  if (upload.userId.toString() !== userId) return { error: 'Not authorized', status: 403 };
+
+  const projects = await Project.find({ uploadId, deletedAt: null }).select('projectId title updatedAt').lean();
+
+  return {
+    ...upload.toPublic(),
+    projects: projects.map(p => ({
+      projectId: p.projectId,
+      title: p.title || 'Untitled',
+      updatedAt: p.updatedAt
+    }))
+  };
 }
 

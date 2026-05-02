@@ -11,7 +11,7 @@ export async function register(data, jwt) {
   const { username, email, password } = data;
 
   const query = [];
-  if (username) query.push({ username: username.toLowerCase() });
+  if (username) query.push({ username: username });
   if (email) query.push({ email: email.toLowerCase() });
   const existing = await User.findOne({ $or: query }).lean();
   if (existing) {
@@ -20,7 +20,7 @@ export async function register(data, jwt) {
 
   const passwordHash = await User.hashPassword(password);
   const user = await User.create({
-    ...(username ? { username: username.toLowerCase() } : {}),
+    ...(username ? { username } : {}),
     ...(email ? { email: email.toLowerCase() } : {}),
     passwordHash,
   });
@@ -44,7 +44,7 @@ export async function login(data, jwt) {
   const normalised = identifier.toLowerCase().trim();
 
   const user = await User.findOne({
-    $or: [{ username: normalised }, { email: normalised }],
+    $or: [{ username: identifier.trim() }, { email: normalised }],
   });
   if (!user || !(await user.verifyPassword(password))) {
     return { error: 'Invalid credentials', status: 401 };

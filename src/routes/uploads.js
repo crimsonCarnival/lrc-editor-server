@@ -60,6 +60,7 @@ export default async function uploadRoutes(fastify) {
   fastify.post('/avatar-signature', { preHandler: [fastify.requireAuth] }, uploadController.avatarSignature);
   fastify.post('/cover-signature', { preHandler: [fastify.requireAuth] }, uploadController.coverSignature);
   fastify.get('/media', { schema: listMediaSchema, preHandler: [fastify.requireAuth] }, uploadController.listMedia);
+  fastify.get('/media/:id', { preHandler: [fastify.requireAuth] }, uploadController.getMedia);
   fastify.post('/media', { schema: createMediaSchema, preHandler: [fastify.requireAuth] }, uploadController.createMedia);
   fastify.patch('/media/:id', { schema: updateMediaSchema, preHandler: [fastify.requireAuth] }, uploadController.updateMedia);
   fastify.delete('/media/:id', { preHandler: [fastify.requireAuth] }, uploadController.deleteMedia);

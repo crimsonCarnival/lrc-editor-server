@@ -3,54 +3,54 @@ import * as authService from '../services/authService.js';
 /**
  * POST /auth/register — register a new user.
  */
-export async function register(request, reply) {
-  const result = await authService.register(request.body, request.server.jwt);
+export async function register(req, res) {
+  const result = await authService.register(req.body, req.server.jwt);
   if (result.error) {
-    return reply.code(result.status).send({ error: result.error });
+    return res.code(result.status).send({ error: result.error });
   }
-  return reply.code(201).send(result);
+  return res.code(201).send(result);
 }
 
 /**
  * POST /auth/login — authenticate a user.
  */
-export async function login(request, reply) {
-  const result = await authService.login(request.body, request.server.jwt);
+export async function login(req, res) {
+  const result = await authService.login(req.body, req.server.jwt);
   if (result.error) {
-    return reply.code(result.status).send({ error: result.error });
+    return res.code(result.status).send({ error: result.error });
   }
-  return reply.send(result);
+  return res.send(result);
 }
 
 /**
  * POST /auth/refresh — refresh an access token.
  */
-export async function refresh(request, reply) {
-  const result = await authService.refresh(request.body.refreshToken, request.server.jwt);
+export async function refresh(req, res) {
+  const result = await authService.refresh(req.body.refreshToken, req.server.jwt);
   if (result.error) {
-    return reply.code(result.status).send({ error: result.error });
+    return res.code(result.status).send({ error: result.error });
   }
-  return reply.send(result);
+  return res.send(result);
 }
 
 /**
  * GET /auth/me — get current user profile.
  */
-export async function me(request, reply) {
-  const result = await authService.getProfile(request.userId);
+export async function me(req, res) {
+  const result = await authService.getProfile(req.userId);
   if (result.error) {
-    return reply.code(result.status).send({ error: result.error });
+    return res.code(result.status).send({ error: result.error });
   }
-  return reply.send(result);
+  return res.send(result);
 }
 
 /**
  * PATCH /auth/profile — update user profile.
  */
-export async function updateProfile(request, reply) {
-  const result = await authService.updateProfile(request.userId, request.body, request.log);
+export async function updateProfile(req, res) {
+  const result = await authService.updateProfile(req.userId, req.body, req.log);
   if (result.error) {
-    return reply.code(result.status).send({ error: result.error });
+    return res.code(result.status).send({ error: result.error });
   }
-  return reply.send(result);
+  return res.send(result);
 }

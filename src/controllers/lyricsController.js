@@ -8,11 +8,11 @@ import {
 /**
  * POST /lyrics/parse — parse raw LRC/SRT content into structured lines.
  */
-export async function parse(request, reply) {
-  const { content, filename } = request.body;
+export async function parse(req, res) {
+  const { content, filename } = req.body;
   const lines = parseLrcSrtFile(content, filename);
 
-  return reply.send({
+  return res.send({
     lines,
     detectedFormat: filename.toLowerCase().endsWith('.srt') ? 'srt' : 'lrc',
     count: lines.length,
@@ -22,7 +22,7 @@ export async function parse(request, reply) {
 /**
  * POST /lyrics/compile/lrc — compile structured lines into LRC format.
  */
-export async function compileLrc(request, reply) {
+export async function compileLrc(req, res) {
   const {
     lines,
     includeTranslations = false,
@@ -31,16 +31,16 @@ export async function compileLrc(request, reply) {
     lineEndings = 'lf',
     includeSecondary = false,
     wordPrecision,
-  } = request.body;
+  } = req.body;
 
   const output = compileLRC(lines, includeTranslations, precision, metadata, lineEndings, includeSecondary, wordPrecision);
-  return reply.send({ output, format: 'lrc' });
+  return res.send({ output, format: 'lrc' });
 }
 
 /**
  * POST /lyrics/compile/srt — compile structured lines into SRT format.
  */
-export async function compileSrt(request, reply) {
+export async function compileSrt(req, res) {
   const {
     lines,
     duration = null,
@@ -48,17 +48,17 @@ export async function compileSrt(request, reply) {
     lineEndings = 'lf',
     srtConfig = {},
     includeSecondary = false,
-  } = request.body;
+  } = req.body;
 
   const output = compileSRT(lines, duration, includeTranslations, lineEndings, srtConfig, includeSecondary);
-  return reply.send({ output, format: 'srt' });
+  return res.send({ output, format: 'srt' });
 }
 
 /**
  * POST /lyrics/infer-end-times — infer missing end times for SRT mode.
  */
-export async function inferEnd(request, reply) {
-  const { lines, duration = null, srtConfig = {} } = request.body;
+export async function inferEnd(req, res) {
+  const { lines, duration = null, srtConfig = {} } = req.body;
   const result = inferEndTimes(lines, duration, srtConfig);
-  return reply.send({ lines: result });
+  return res.send({ lines: result });
 }

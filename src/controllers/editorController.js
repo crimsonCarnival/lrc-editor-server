@@ -10,7 +10,7 @@ import {
 /**
  * POST /editor/mark — apply a timestamp mark.
  */
-export async function mark(request, reply) {
+export async function mark(req, res) {
   const {
     lines,
     activeLineIndex,
@@ -21,7 +21,7 @@ export async function mark(request, reply) {
     awaitingEndMark = null,
     focusedTimestamp = null,
     settings,
-  } = request.body;
+  } = req.body;
 
   const result = applyMark({
     lines,
@@ -35,50 +35,50 @@ export async function mark(request, reply) {
     settings,
   });
 
-  return reply.send(result);
+  return res.send(result);
 }
 
 /**
  * POST /editor/bulk-shift — shift timestamps for selected lines.
  */
-export async function bulkShift(request, reply) {
-  const { lines, selectedIndices, delta } = request.body;
+export async function bulkShift(req, res) {
+  const { lines, selectedIndices, delta } = req.body;
   const result = applyBulkShift(lines, selectedIndices, delta);
-  return reply.send({ lines: result });
+  return res.send({ lines: result });
 }
 
 /**
  * POST /editor/global-offset — apply global offset to all lines.
  */
-export async function globalOffset(request, reply) {
-  const { lines, delta } = request.body;
+export async function globalOffset(req, res) {
+  const { lines, delta } = req.body;
   const result = applyGlobalOffset(lines, delta);
-  return reply.send({ lines: result });
+  return res.send({ lines: result });
 }
 
 /**
  * POST /editor/clear-all — clear all timestamps.
  */
-export async function clearAll(request, reply) {
-  const { lines, isSrt = false, isWords = false } = request.body;
+export async function clearAll(req, res) {
+  const { lines, isSrt = false, isWords = false } = req.body;
   const result = clearAllTimestamps(lines, isSrt, isWords);
-  return reply.send({ lines: result });
+  return res.send({ lines: result });
 }
 
 /**
  * POST /editor/clear-line — clear a single line's timestamps.
  */
-export async function clearLine(request, reply) {
-  const { lines, index, isSrt = false, isWords = false } = request.body;
+export async function clearLine(req, res) {
+  const { lines, index, isSrt = false, isWords = false } = req.body;
   const result = clearLineTimestamp(lines, index, isSrt, isWords);
-  return reply.send({ lines: result });
+  return res.send({ lines: result });
 }
 
 /**
  * POST /editor/detect-duplicates — find overlapping timestamps.
  */
-export async function detectDuplicates(request, reply) {
-  const { lines, threshold = 0.05 } = request.body;
+export async function detectDuplicates(req, res) {
+  const { lines, threshold = 0.05 } = req.body;
   const indices = detectDuplicateTimestamps(lines, threshold);
-  return reply.send({ overlappingIndices: indices });
+  return res.send({ overlappingIndices: indices });
 }

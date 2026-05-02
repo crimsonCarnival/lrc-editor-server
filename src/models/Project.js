@@ -11,6 +11,9 @@ const stateSchema = new mongoose.Schema(
     activeLineIndex: { type: Number, default: 0 },
     playbackPosition: { type: Number, default: 0 },
     playbackSpeed: { type: Number, default: 1 },
+    saveTime: { type: String, default: null, maxlength: 64 },
+    timezone: { type: String, default: null, maxlength: 100 },
+    utcOffset: { type: String, default: null, maxlength: 6 },
   },
   { _id: false }
 );
@@ -97,6 +100,8 @@ projectSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Soft-delete filter: exclude deleted projects by default
 projectSchema.index({ deletedAt: 1 });
+// Supports list query: by owner + not deleted, sorted by recent updates
+projectSchema.index({ userId: 1, deletedAt: 1, updatedAt: -1 });
 
 // Methods
 projectSchema.methods.isOwnedBy = function (userId) {

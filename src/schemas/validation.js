@@ -45,6 +45,9 @@ export const stateSchema = {
     activeLineIndex: { type: 'integer', minimum: 0 },
     playbackPosition: { type: 'number', minimum: 0 },
     playbackSpeed: { type: 'number', minimum: 0.05, maximum: 10 },
+    saveTime: { type: 'string', maxLength: 64 },
+    timezone: { type: 'string', maxLength: 100 },
+    utcOffset: { type: 'string', pattern: '^[+-]\\d{2}:\\d{2}$' },
   },
   additionalProperties: false,
 };

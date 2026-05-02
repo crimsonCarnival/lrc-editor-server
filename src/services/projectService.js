@@ -60,11 +60,21 @@ export async function listProjects(userId) {
     .limit(100)
     .lean();
 
-  // Batch-fetch lyrics metadata for all projects
   const projectIds = projects.map((s) => s.projectId);
-  const lyricsMetadata = await Lyrics.find({ projectId: { $in: projectIds } })
-    .select('projectId editorMode lines')
-    .lean();
+  if (projectIds.length === 0) return [];
+
+  // Batch-fetch lightweight lyrics metadata only (avoid loading full lines arrays).
+  const lyricsMetadata = await Lyrics.aggregate([
+    { $match: { projectId: { $in: projectIds } } },
+    {
+      $project: {
+        _id: 0,
+        projectId: 1,
+        editorMode: 1,
+        lineCount: { $size: { $ifNull: ['$lines', []] } },
+      },
+    },
+  ]);
 
   const lyricsMap = new Map();
   for (const l of lyricsMetadata) {
@@ -85,7 +95,7 @@ export async function listProjects(userId) {
       metadata: s.metadata || {},
       upload: uploadObj,
       editorMode: lyrics?.editorMode || 'lrc',
-      lineCount: lyrics?.lines?.length || 0,
+      lineCount: lyrics?.lineCount || 0,
       readOnly: s.readOnly,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
@@ -114,7 +124,7 @@ export async function getProject(projectId) {
     pub.upload = null;
   }
   delete pub.uploadId;
-  
+
   pub.lyrics = lyrics
     ? { editorMode: lyrics.editorMode, language: lyrics.language || null, lines: lyrics.lines }
     : { editorMode: 'lrc', language: null, lines: [] };
@@ -157,29 +167,28 @@ export async function updateProject(projectId, data, userId) {
 
   projectUpdate.lastEditedBy = userId || null;
 
-  // Update project and get updated document
-  const updatedProject = await Project.findOneAndUpdate(
-    { projectId },
-    { $set: projectUpdate, $inc: { version: 1 } },
-    { new: true }
-  ).populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist thumbnailUrl');
-
-  // Update lyrics in separate collection
-  let updatedLyrics;
-  if (lyrics !== undefined) {
+  const lyricsPromise = (() => {
+    if (lyrics === undefined) return Lyrics.findOne({ projectId });
     const lyricsUpdate = {};
     if (lyrics.editorMode !== undefined) lyricsUpdate.editorMode = lyrics.editorMode;
     if (lyrics.language !== undefined) lyricsUpdate.language = lyrics.language;
     if (lyrics.lines !== undefined) lyricsUpdate.lines = lyrics.lines;
-
-    updatedLyrics = await Lyrics.findOneAndUpdate(
+    return Lyrics.findOneAndUpdate(
       { projectId },
       { $set: lyricsUpdate, $inc: { version: 1 } },
       { upsert: true, new: true }
     );
-  } else {
-    updatedLyrics = await Lyrics.findOne({ projectId });
-  }
+  })();
+
+  // Update project and lyrics in parallel.
+  const [updatedProject, updatedLyrics] = await Promise.all([
+    Project.findOneAndUpdate(
+      { projectId },
+      { $set: projectUpdate, $inc: { version: 1 } },
+      { new: true }
+    ).populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist thumbnailUrl'),
+    lyricsPromise,
+  ]);
 
   // Build response from updated documents (avoiding refetch)
   const pub = updatedProject.toPublic();
@@ -191,7 +200,7 @@ export async function updateProject(projectId, data, userId) {
     pub.upload = null;
   }
   delete pub.uploadId;
-  
+
   pub.lyrics = updatedLyrics
     ? { editorMode: updatedLyrics.editorMode, language: updatedLyrics.language || null, lines: updatedLyrics.lines }
     : { editorMode: 'lrc', language: null, lines: [] };
@@ -216,7 +225,8 @@ export async function updateProject(projectId, data, userId) {
  * @returns {{ project: object }|{ error: string, status: number }}
  */
 export async function patchProject(projectId, data, userId) {
-  const project = await Project.findOne({ projectId, deletedAt: null });
+  const project = await Project.findOne({ projectId, deletedAt: null })
+    .populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist thumbnailUrl');
   if (!project) return { error: 'Project not found', status: 404 };
 
   if (project.userId && !project.isOwnedBy(userId)) {
@@ -246,7 +256,7 @@ export async function patchProject(projectId, data, userId) {
   projectUpdate.lastEditedBy = userId || null;
 
   const hasProjectUpdate = Object.keys(projectUpdate).length > 1; // > 1 because lastEditedBy always set
-  
+
   // Update project if needed
   let updatedProject = project;
   if (hasProjectUpdate) {
@@ -257,14 +267,11 @@ export async function patchProject(projectId, data, userId) {
     ).populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist thumbnailUrl');
   }
 
-  // Handle lyrics updates
-  let updatedLyrics;
-  if (data.lyrics !== undefined) {
-    await patchLyrics(projectId, data.lyrics);
-    updatedLyrics = await Lyrics.findOne({ projectId });
-  } else {
-    updatedLyrics = await Lyrics.findOne({ projectId });
-  }
+  const lyricsPromise = data.lyrics !== undefined
+    ? patchLyrics(projectId, data.lyrics)
+    : Lyrics.findOne({ projectId });
+
+  const updatedLyrics = await lyricsPromise;
 
   // Build response from updated documents
   const pub = updatedProject.toPublic();
@@ -276,7 +283,7 @@ export async function patchProject(projectId, data, userId) {
     pub.upload = null;
   }
   delete pub.uploadId;
-  
+
   pub.lyrics = updatedLyrics
     ? { editorMode: updatedLyrics.editorMode, language: updatedLyrics.language || null, lines: updatedLyrics.lines }
     : { editorMode: 'lrc', language: null, lines: [] };
@@ -295,11 +302,11 @@ async function patchLyrics(projectId, lyricsData) {
     for (const [key, value] of Object.entries(lyricsData.line)) {
       update[`lines.${lyricsData.lineIndex}.${key}`] = value;
     }
-    await Lyrics.updateOne(
+    return Lyrics.findOneAndUpdate(
       { projectId },
-      { $set: update, $inc: { version: 1 } }
+      { $set: update, $inc: { version: 1 } },
+      { upsert: true, new: true }
     );
-    return;
   }
 
   // Word timing update (most efficient for word-level sync)
@@ -312,11 +319,11 @@ async function patchLyrics(projectId, lyricsData) {
     for (const [key, value] of Object.entries(lyricsData.word)) {
       update[`lines.${lyricsData.lineIndex}.words.${lyricsData.wordIndex}.${key}`] = value;
     }
-    await Lyrics.updateOne(
+    return Lyrics.findOneAndUpdate(
       { projectId },
-      { $set: update, $inc: { version: 1 } }
+      { $set: update, $inc: { version: 1 } },
+      { upsert: true, new: true }
     );
-    return;
   }
 
   // Full lyrics update
@@ -326,12 +333,14 @@ async function patchLyrics(projectId, lyricsData) {
   if (lyricsData.lines !== undefined) lyricsUpdate.lines = lyricsData.lines;
 
   if (Object.keys(lyricsUpdate).length > 0) {
-    await Lyrics.updateOne(
+    return Lyrics.findOneAndUpdate(
       { projectId },
       { $set: lyricsUpdate, $inc: { version: 1 } },
-      { upsert: true }
+      { upsert: true, new: true }
     );
   }
+
+  return Lyrics.findOne({ projectId });
 }
 
 /**
@@ -354,4 +363,116 @@ export async function deleteProject(projectId, userId) {
   await Lyrics.deleteOne({ projectId });
 
   return {};
+}
+
+/**
+ * Get a project for public sharing (read-only view).
+ * Filters out private fields and Spotify-linked data.
+ * @param {string} projectId 
+ * @returns {object|null} Sanitized public project object
+ */
+export async function getShareProject(projectId) {
+  const project = await Project.findOne({ projectId, deletedAt: null })
+    .populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title');
+  
+  if (!project) return null;
+
+  const lyrics = await Lyrics.findOne({ projectId });
+
+  const pub = project.toPublic();
+  const rawUpload = pub.uploadId;
+  
+  // Build sanitized upload object - exclude Spotify data
+  if (rawUpload && typeof rawUpload === 'object') {
+    pub.upload = {
+      id: rawUpload._id?.toString?.() || rawUpload.id,
+      source: rawUpload.source,
+      fileName: rawUpload.fileName,
+      youtubeUrl: rawUpload.youtubeUrl,
+      cloudinaryUrl: rawUpload.cloudinaryUrl,
+      duration: rawUpload.duration,
+      title: rawUpload.title,
+      // Excluded: spotifyTrackId, artist, thumbnailUrl (owner's Spotify data)
+    };
+  } else {
+    pub.upload = null;
+  }
+  delete pub.uploadId;
+
+  // Sanitize lyrics - no changes needed, lyrics don't contain Spotify data
+  pub.lyrics = lyrics
+    ? { editorMode: lyrics.editorMode, language: lyrics.language || null, lines: lyrics.lines }
+    : { editorMode: 'lrc', language: null, lines: [] };
+
+  // Remove sensitive fields
+  delete pub.userId;
+  delete pub.lastEditedBy;
+  delete pub.expiresAt;
+  delete pub.deletedAt;
+
+  return pub;
+}
+
+/**
+ * Clone a project to a new user's account.
+ * Duplicates project metadata, lyrics, and uploads but excludes Spotify-linked data.
+ * @param {string} sourceProjectId 
+ * @param {string} newUserId 
+ * @returns {object} New project data or error
+ */
+export async function cloneProject(sourceProjectId, newUserId) {
+  const sourceProject = await Project.findOne({ projectId: sourceProjectId, deletedAt: null });
+  if (!sourceProject) return { error: 'Source project not found', status: 404 };
+
+  const lyrics = await Lyrics.findOne({ projectId: sourceProjectId });
+
+  // Create new lyrics document
+  const newLyricsDoc = await Lyrics.create({
+    projectId: null, // Will be set after project creation
+    editorMode: lyrics?.editorMode || 'lrc',
+    language: lyrics?.language,
+    lines: lyrics?.lines || [],
+  });
+
+  // Create new upload document if source has upload (duplicate upload metadata)
+  let newUploadId = null;
+  if (sourceProject.uploadId) {
+    const sourceUpload = await Upload.findById(sourceProject.uploadId);
+    if (sourceUpload) {
+      const newUpload = await Upload.create({
+        userId: newUserId,
+        source: sourceUpload.source,
+        cloudinaryUrl: sourceUpload.cloudinaryUrl,
+        publicId: sourceUpload.publicId,
+        youtubeUrl: sourceUpload.youtubeUrl,
+        fileName: sourceUpload.fileName,
+        title: sourceUpload.title,
+        duration: sourceUpload.duration,
+        // Excluded: spotifyTrackId, artist, thumbnailUrl (need reconnection by new owner)
+      });
+      newUploadId = newUpload._id;
+    }
+  }
+
+  // Create new project document
+  const newProject = await Project.create({
+    userId: newUserId,
+    title: sourceProject.title,
+    uploadId: newUploadId,
+    lyricsId: newLyricsDoc._id,
+    state: sourceProject.state,
+    metadata: sourceProject.metadata,
+    readOnly: false,
+    type: 'saved',
+    lastEditedBy: newUserId,
+  });
+
+  // Link lyrics to project
+  newLyricsDoc.projectId = newProject.projectId;
+  await newLyricsDoc.save();
+
+  return {
+    projectId: newProject.projectId,
+    url: `/s/${newProject.projectId}`,
+  };
 }

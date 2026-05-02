@@ -62,4 +62,8 @@ export default async function projectRoutes(fastify) {
   fastify.put('/:id', { schema: updateProjectSchema, preHandler: [fastify.requireAuth] }, projectController.update);
   fastify.patch('/:id', { schema: patchProjectSchema, preHandler: [fastify.requireAuth] }, projectController.patch);
   fastify.delete('/:id', { schema: { params: projectIdParam }, preHandler: [fastify.requireAuth] }, projectController.remove);
+  // Public share view - no auth required
+  fastify.get('/share/:id', { schema: { params: projectIdParam } }, projectController.getShare);
+  // Clone project - requires auth
+  fastify.post('/clone/:id', { schema: { params: projectIdParam }, preHandler: [fastify.requireAuth] }, projectController.clone);
 }

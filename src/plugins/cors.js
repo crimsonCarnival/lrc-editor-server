@@ -2,7 +2,7 @@ import fp from 'fastify-plugin';
 import fastifyCors from '@fastify/cors';
 
 async function corsPlugin(fastify) {
-  const origins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  const origins = process.env.CORS_ORIGIN
     .split(',')
     .map((o) => o.trim());
 
@@ -15,3 +15,4 @@ async function corsPlugin(fastify) {
 }
 
 export default fp(corsPlugin, { name: 'cors' });
+

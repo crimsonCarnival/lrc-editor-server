@@ -72,6 +72,15 @@ export async function listProjects(userId) {
         projectId: 1,
         editorMode: 1,
         lineCount: { $size: { $ifNull: ['$lines', []] } },
+        syncedLineCount: {
+          $size: {
+            $filter: {
+              input: { $ifNull: ['$lines', []] },
+              as: 'line',
+              cond: { $ne: ['$$line.timestamp', null] }
+            }
+          }
+        }
       },
     },
   ]);
@@ -96,6 +105,7 @@ export async function listProjects(userId) {
       upload: uploadObj,
       editorMode: lyrics?.editorMode || 'lrc',
       lineCount: lyrics?.lineCount || 0,
+      syncedLineCount: lyrics?.syncedLineCount || 0,
       readOnly: s.readOnly,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,

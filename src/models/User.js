@@ -69,6 +69,19 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    appealStatus: {
+      type: String,
+      enum: ['none', 'pending', 'rejected'],
+      default: 'none',
+    },
+    showUnbanMessage: {
+      type: Boolean,
+      default: false,
+    },
     role: {
       type: String,
       enum: ['user', 'admin'],
@@ -81,6 +94,10 @@ const userSchema = new mongoose.Schema(
       expiresAt: { type: Date, default: null },
       isPremium: { type: Boolean, default: false },
       profilePictureUrl: { type: String, default: null },
+    },
+    lastIp: {
+      type: String,
+      default: null,
     },
   },
   { timestamps: true }
@@ -119,6 +136,30 @@ userSchema.methods.toPublic = function () {
     };
   }
   return obj;
+};
+
+/**
+ * Checks if the user's ban has expired.
+ * If expired, it resets the ban fields and returns true (unbanned).
+ * Returns false if still banned or was never banned.
+ */
+userSchema.methods.checkBanStatus = async function () {
+  if (!this.isBanned) return false;
+  
+  if (this.bannedUntil && this.bannedUntil <= new Date()) {
+    this.isBanned = false;
+    this.bannedAt = null;
+    this.bannedUntil = null;
+    this.banReason = null;
+    this.banAppeal = null;
+    this.appealAt = null;
+    this.appealStatus = 'none';
+    this.showUnbanMessage = true; // Signal to frontend that user was unbanned
+    await this.save();
+    return true;
+  }
+  
+  return false;
 };
 
 export default mongoose.model('User', userSchema);

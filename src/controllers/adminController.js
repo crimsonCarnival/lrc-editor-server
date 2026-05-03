@@ -7,13 +7,20 @@ export async function getUsers(req, res) {
 }
 
 export async function banUser(req, res) {
-  const result = await adminService.toggleBan(req.params.id, true, req.body.reason);
+  const { reason, bannedUntil, banIp } = req.body;
+  const result = await adminService.toggleBan(req.params.id, true, reason, bannedUntil, banIp, req.userId);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
 
 export async function unbanUser(req, res) {
   const result = await adminService.toggleBan(req.params.id, false);
+  if (result.error) return res.code(result.status).send({ error: result.error });
+  return res.send(result);
+}
+
+export async function rejectAppeal(req, res) {
+  const result = await adminService.rejectAppeal(req.params.id);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -30,6 +37,12 @@ export async function deleteUser(req, res) {
   return res.send(result);
 }
 
-export async function getLogs(req, res) {
+export async function reactivateUser(req, res) {
+  const result = await adminService.reactivateUser(req.params.id);
+  if (result.error) return res.code(result.status).send({ error: result.error });
+  return res.send(result);
+}
+
+export async function getLogs(_, res) {
   return res.send({ logs: requestLog.toArray() });
 }

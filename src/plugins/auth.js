@@ -59,8 +59,9 @@ async function authPlugin(fastify) {
       const decoded = verifyToken(header.slice(7));
       request.userId = decoded.sub;
       const User = (await import('../models/User.js')).default;
-      const user = await User.findById(decoded.sub).select('isBanned deletedAt');
+      const user = await User.findById(decoded.sub);
       if (!user || user.deletedAt) return reply.code(401).send({ error: 'User not found' });
+      await user.checkBanStatus();
       if (user.isBanned) return reply.code(403).send({ error: 'User is banned' });
     } catch {
       return reply.code(401).send({ error: 'Invalid or expired token' });
@@ -78,8 +79,9 @@ async function authPlugin(fastify) {
       request.userId = decoded.sub;
       
       const User = (await import('../models/User.js')).default;
-      const user = await User.findById(decoded.sub).select('role isBanned deletedAt');
+      const user = await User.findById(decoded.sub);
       if (!user || user.deletedAt) return reply.code(401).send({ error: 'User not found' });
+      await user.checkBanStatus();
       if (user.isBanned) return reply.code(403).send({ error: 'User is banned' });
       if (user.role !== 'admin') return reply.code(403).send({ error: 'Admin access required' });
     } catch {

@@ -1,21 +1,39 @@
 import User from '../models/User.js';
+import BannedIp from '../models/BannedIp.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * Register a new user.
  * @param {{ username?: string, email?: string, password: string }} data
  * @param {{ signAccess: Function, signRefresh: Function }} jwt
+ * @param {string} ip
  * @returns {{ user, accessToken, refreshToken }|{ error: string, status: number }}
  */
-export async function register(data, jwt) {
+export async function register(data, jwt, ip) {
+  // Check if IP is banned
+  const ipBanned = await BannedIp.findOne({ ip });
+  if (ipBanned) {
+    return { error: 'Registration restricted from this network.', status: 403 };
+  }
   const { username, email, password } = data;
 
   const query = [];
   if (username) query.push({ username: username });
   if (email) query.push({ email: email.toLowerCase() });
-  const existing = await User.findOne({ $or: query }).lean();
+  const existing = await User.findOne({ $or: query });
   if (existing) {
+    if (existing.isBanned) {
+      return { error: 'Registration failed. This account or email is restricted.', status: 403 };
+    }
     return { error: 'Username or email already taken', status: 409 };
+  }
+
+  // Double check if any banned user had this IP
+  if (ip) {
+    const bannedByIp = await User.findOne({ lastIp: ip, isBanned: true }).lean();
+    if (bannedByIp) {
+      return { error: 'Registration failed. This network is restricted due to previous violations.', status: 403 };
+    }
   }
 
   const passwordHash = await User.hashPassword(password);
@@ -23,6 +41,7 @@ export async function register(data, jwt) {
     ...(username ? { username } : {}),
     ...(email ? { email: email.toLowerCase() } : {}),
     passwordHash,
+    lastIp: ip,
   });
 
   const tokenPayload = { sub: user._id.toString() };
@@ -37,9 +56,15 @@ export async function register(data, jwt) {
  * Authenticate a user by username/email + password.
  * @param {{ identifier: string, password: string }} data
  * @param {{ signAccess: Function, signRefresh: Function }} jwt
+ * @param {string} ip
  * @returns {{ user, accessToken, refreshToken }|{ error: string, status: number }}
  */
-export async function login(data, jwt) {
+export async function login(data, jwt, ip) {
+  // Check if IP is banned
+  const ipBanned = await BannedIp.findOne({ ip });
+  if (ipBanned) {
+    return { error: 'Access restricted from this network.', status: 403 };
+  }
   const { identifier, password } = data;
   const normalised = identifier.toLowerCase().trim();
 
@@ -49,6 +74,15 @@ export async function login(data, jwt) {
   if (!user || !(await user.verifyPassword(password))) {
     return { error: 'Invalid credentials', status: 401 };
   }
+
+  await user.checkBanStatus();
+
+  if (user.isDeleted) {
+    return { error: 'Account has been deleted', status: 403 };
+  }
+
+  user.lastIp = ip;
+  await user.save();
 
   const tokenPayload = { sub: user._id.toString() };
   return {
@@ -91,7 +125,10 @@ export async function refresh(refreshToken, jwt) {
  */
 export async function getProfile(userId) {
   const user = await User.findById(userId);
-  if (!user) return { error: 'User not found', status: 404 };
+  if (!user || user.isDeleted) return { error: 'User not found', status: 404 };
+  
+  await user.checkBanStatus();
+  
   return { user: user.toPublic() };
 }
 
@@ -142,8 +179,22 @@ export async function submitAppeal(userId, appealText) {
   if (!user.isBanned) return { error: 'User is not banned', status: 400 };
 
   user.banAppeal = appealText.slice(0, 1000);
+  user.appealStatus = 'pending';
   user.appealAt = new Date();
   await user.save();
 
   return { user: user.toPublic() };
+}
+
+/**
+ * Clear the unban welcome message flag.
+ */
+export async function clearUnbanMessage(userId) {
+  const user = await User.findById(userId);
+  if (!user) return { error: 'User not found', status: 404 };
+
+  user.showUnbanMessage = false;
+  await user.save();
+
+  return { success: true };
 }

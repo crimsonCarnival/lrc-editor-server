@@ -66,4 +66,5 @@ export default async function authRoutes(fastify) {
   fastify.get('/me', { preHandler: [fastify.requireAuth] }, authController.me);
   fastify.patch('/profile', { schema: updateProfileSchema, preHandler: [fastify.requireAuth] }, authController.updateProfile);
   fastify.post('/appeal', { preHandler: [fastify.requireAuth] }, authController.submitAppeal);
+  fastify.post('/clear-unban-message', { preHandler: [fastify.requireAuth] }, authController.clearUnbanMessage);
 }

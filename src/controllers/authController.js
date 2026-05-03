@@ -4,7 +4,7 @@ import * as authService from '../services/authService.js';
  * POST /auth/register — register a new user.
  */
 export async function register(req, res) {
-  const result = await authService.register(req.body, req.server.jwt);
+  const result = await authService.register(req.body, req.server.jwt, req.ip);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }
@@ -15,7 +15,7 @@ export async function register(req, res) {
  * POST /auth/login — authenticate a user.
  */
 export async function login(req, res) {
-  const result = await authService.login(req.body, req.server.jwt);
+  const result = await authService.login(req.body, req.server.jwt, req.ip);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }
@@ -57,6 +57,14 @@ export async function updateProfile(req, res) {
 
 export async function submitAppeal(req, res) {
   const result = await authService.submitAppeal(req.userId, req.body.appealText);
+  if (result.error) {
+    return res.code(result.status).send({ error: result.error });
+  }
+  return res.send(result);
+}
+
+export async function clearUnbanMessage(req, res) {
+  const result = await authService.clearUnbanMessage(req.userId);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }

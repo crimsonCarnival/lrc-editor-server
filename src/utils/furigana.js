@@ -79,5 +79,10 @@ export function parseRubyMarkup(input) {
  */
 export function serializeToRubyMarkup(words) {
   if (!words?.length) return '';
-  return words.map(w => (w.reading ? `{${w.word}|${w.reading}}` : w.word)).join('');
+  return words.map((w, i) => {
+    const serialized = w.reading ? `{${w.word}|${w.reading}}` : w.word;
+    // Add space after Latin/alphanumeric words (but not after the last word)
+    const needsSpace = i < words.length - 1 && /[a-zA-Z0-9]/.test(w.word);
+    return needsSpace ? serialized + ' ' : serialized;
+  }).join('');
 }

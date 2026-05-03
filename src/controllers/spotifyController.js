@@ -97,7 +97,6 @@ export async function createUpload(req, res) {
     spotifyTrackId: resolved.trackId,
     title: resolved.name,
     artist: resolved.artist,
-    thumbnailUrl: resolved.albumArt,
     duration: resolved.duration ? resolved.duration / 1000 : null,
     fileName: '',
   });

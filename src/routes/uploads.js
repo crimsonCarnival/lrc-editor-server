@@ -23,7 +23,6 @@ const createMediaSchema = {
       youtubeUrl: { type: ['string', 'null'], maxLength: 500 },
       spotifyTrackId: { type: ['string', 'null'], maxLength: 100 },
       artist: { type: ['string', 'null'], maxLength: 500 },
-      thumbnailUrl: { type: ['string', 'null'], maxLength: 500 },
       fileName: { type: 'string', maxLength: 500 },
       title: { type: 'string', maxLength: 500 },
       duration: { type: ['number', 'null'] },
@@ -58,7 +57,6 @@ const listMediaSchema = {
 export default async function uploadRoutes(fastify) {
   fastify.post('/signature', { schema: signatureSchema, preHandler: [fastify.requireAuth] }, uploadController.audioSignature);
   fastify.post('/avatar-signature', { preHandler: [fastify.requireAuth] }, uploadController.avatarSignature);
-  fastify.post('/cover-signature', { preHandler: [fastify.requireAuth] }, uploadController.coverSignature);
   fastify.get('/media', { schema: listMediaSchema, preHandler: [fastify.requireAuth] }, uploadController.listMedia);
   fastify.get('/media/:id', { preHandler: [fastify.requireAuth] }, uploadController.getMedia);
   fastify.post('/media', { schema: createMediaSchema, preHandler: [fastify.requireAuth] }, uploadController.createMedia);

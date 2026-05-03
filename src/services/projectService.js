@@ -196,7 +196,7 @@ export async function updateProject(projectId, data, userId) {
       { projectId },
       { $set: projectUpdate, $inc: { version: 1 } },
       { new: true }
-    ).populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist thumbnailUrl'),
+    ).populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist'),
     lyricsPromise,
   ]);
 
@@ -236,7 +236,7 @@ export async function updateProject(projectId, data, userId) {
  */
 export async function patchProject(projectId, data, userId) {
   const project = await Project.findOne({ projectId, deletedAt: null })
-    .populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist thumbnailUrl');
+    .populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist');
   if (!project) return { error: 'Project not found', status: 404 };
 
   if (project.userId && !project.isOwnedBy(userId)) {
@@ -274,7 +274,7 @@ export async function patchProject(projectId, data, userId) {
       { projectId },
       { $set: projectUpdate, $inc: { version: 1 } },
       { new: true }
-    ).populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist thumbnailUrl');
+    ).populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist');
   }
 
   const lyricsPromise = data.lyrics !== undefined
@@ -402,7 +402,7 @@ export async function getShareProject(projectId) {
       cloudinaryUrl: rawUpload.cloudinaryUrl,
       duration: rawUpload.duration,
       title: rawUpload.title,
-      // Excluded: spotifyTrackId, artist, thumbnailUrl (owner's Spotify data)
+      // Excluded: spotifyTrackId, artist (owner's Spotify data)
     };
   } else {
     pub.upload = null;
@@ -458,7 +458,7 @@ export async function cloneProject(sourceProjectId, newUserId) {
         fileName: sourceUpload.fileName,
         title: sourceUpload.title,
         duration: sourceUpload.duration,
-        // Excluded: spotifyTrackId, artist, thumbnailUrl (need reconnection by new owner)
+        // Excluded: spotifyTrackId, artist (need reconnection by new owner)
       });
       newUploadId = newUpload._id;
     }

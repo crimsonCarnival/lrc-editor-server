@@ -25,7 +25,6 @@ const uploadSchema = new mongoose.Schema(
     // Spotify fields
     spotifyTrackId: { type: String, default: null, maxlength: 100 },
     artist: { type: String, default: null, maxlength: 500, set: textSetter },
-    thumbnailUrl: { type: String, default: null, maxlength: 500, set: urlSetter },
     // Common
     fileName: { type: String, default: '', maxlength: 500, set: textSetter },
     title: { type: String, default: '', maxlength: 500, set: textSetter },

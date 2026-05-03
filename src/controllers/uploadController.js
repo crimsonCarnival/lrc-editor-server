@@ -22,16 +22,7 @@ export async function avatarSignature(_, res) {
   return res.send(result);
 }
 
-/**
- * POST /uploads/cover-signature — generate signed cover upload params.
- */
-export async function coverSignature(_, res) {
-  const result = uploadService.generateCoverSignature();
-  if (result.error) {
-    return res.code(result.status).send({ error: result.error });
-  }
-  return res.send(result);
-}
+
 
 /**
  * GET /uploads/media — list user's uploaded media with pagination.

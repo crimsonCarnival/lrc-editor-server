@@ -85,31 +85,7 @@ export function generateAvatarSignature() {
   };
 }
 
-/**
- * Generate signed upload signature for cover images.
- */
-export function generateCoverSignature() {
-  if (!isCloudinaryConfigured()) {
-    return { error: 'Upload service not configured', status: 503 };
-  }
 
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
-  const timestamp = Math.round(Date.now() / 1000);
-  const params = {
-    timestamp,
-    folder: 'lyrics-syncer/covers',
-  };
-  const signature = cloudinary.utils.api_sign_request(params, apiSecret);
-
-  return {
-    signature,
-    timestamp,
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    folder: 'lyrics-syncer/covers',
-    resourceType: 'image',
-  };
-}
 
 /**
  * List a user's uploaded media with pagination support.
@@ -142,7 +118,6 @@ export async function listMedia(userId, { limit = 50, offset = 0 } = {}) {
       youtubeUrl: u.youtubeUrl,
       spotifyTrackId: u.spotifyTrackId,
       artist: u.artist,
-      thumbnailUrl: u.thumbnailUrl,
       fileName: u.fileName,
       title: u.title,
       duration: u.duration,
@@ -160,7 +135,7 @@ export async function listMedia(userId, { limit = 50, offset = 0 } = {}) {
  * @returns {object} Public upload object
  */
 export async function createMedia(userId, data) {
-  const { source, cloudinaryUrl, publicId, youtubeUrl, spotifyTrackId, artist, thumbnailUrl, fileName, title, duration } = data;
+  const { source, cloudinaryUrl, publicId, youtubeUrl, spotifyTrackId, artist, fileName, title, duration } = data;
 
   const query = { userId, source };
   if (source === 'cloudinary' && cloudinaryUrl) query.cloudinaryUrl = cloudinaryUrl;
@@ -188,7 +163,7 @@ export async function createMedia(userId, data) {
       youtubeUrl: youtubeUrl || null,
       spotifyTrackId: spotifyTrackId || null,
       artist: artist || null,
-      thumbnailUrl: thumbnailUrl || null,
+      artist: artist || null,
       fileName: fileName || '',
       title: finalTitle,
       duration: finalDuration,

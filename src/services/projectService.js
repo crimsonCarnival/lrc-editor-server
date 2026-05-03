@@ -449,17 +449,26 @@ export async function cloneProject(sourceProjectId, newUserId) {
   if (sourceProject.uploadId) {
     const sourceUpload = await Upload.findById(sourceProject.uploadId);
     if (sourceUpload) {
-      const newUpload = await Upload.create({
-        userId: newUserId,
-        source: sourceUpload.source,
-        cloudinaryUrl: sourceUpload.cloudinaryUrl,
-        publicId: sourceUpload.publicId,
-        youtubeUrl: sourceUpload.youtubeUrl,
-        fileName: sourceUpload.fileName,
-        title: sourceUpload.title,
-        duration: sourceUpload.duration,
-        // Excluded: spotifyTrackId, artist (need reconnection by new owner)
-      });
+      // Use findOneAndUpdate to deduplicate uploads for the new user
+      const query = { userId: newUserId, source: sourceUpload.source };
+      if (sourceUpload.source === 'cloudinary' && sourceUpload.cloudinaryUrl) query.cloudinaryUrl = sourceUpload.cloudinaryUrl;
+      else if (sourceUpload.source === 'youtube' && sourceUpload.youtubeUrl) query.youtubeUrl = sourceUpload.youtubeUrl;
+      
+      const newUpload = await Upload.findOneAndUpdate(
+        query,
+        {
+          userId: newUserId,
+          source: sourceUpload.source,
+          cloudinaryUrl: sourceUpload.cloudinaryUrl,
+          publicId: sourceUpload.publicId,
+          youtubeUrl: sourceUpload.youtubeUrl,
+          fileName: sourceUpload.fileName,
+          title: sourceUpload.title,
+          duration: sourceUpload.duration,
+          // Excluded: spotifyTrackId, artist (need reconnection by new owner)
+        },
+        { upsert: true, new: true }
+      );
       newUploadId = newUpload._id;
     }
   }

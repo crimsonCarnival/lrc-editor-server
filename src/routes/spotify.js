@@ -173,7 +173,7 @@ export default async function spotifyRoutes(fastify) {
   // OAuth flow — authorize requires auth (to embed userId in state)
   fastify.get(
     '/auth/url',
-    { preHandler: [fastify.requireAuth] },
+    { preHandler: [fastify.requireActiveUser] },
     spotifyController.authorize
   );
 
@@ -187,14 +187,14 @@ export default async function spotifyRoutes(fastify) {
   // Token for Web Playback SDK
   fastify.get(
     '/token',
-    { preHandler: [fastify.requireAuth] },
+    { preHandler: [fastify.requireActiveUser] },
     spotifyController.getToken
   );
 
   // Disconnect
   fastify.post(
     '/disconnect',
-    { preHandler: [fastify.requireAuth] },
+    { preHandler: [fastify.requireActiveUser] },
     spotifyController.disconnect
   );
 
@@ -203,7 +203,7 @@ export default async function spotifyRoutes(fastify) {
     '/upload',
     {
       schema: uploadSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     },
     spotifyController.createUpload
@@ -214,7 +214,7 @@ export default async function spotifyRoutes(fastify) {
     '/search',
     {
       schema: searchSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
     },
     spotifyController.searchTracks
@@ -225,7 +225,7 @@ export default async function spotifyRoutes(fastify) {
     '/saved-tracks',
     {
       schema: paginationSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.savedTracks
   );
@@ -234,7 +234,7 @@ export default async function spotifyRoutes(fastify) {
     '/recently-played',
     {
       schema: limitOnlySchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.recentlyPlayed
   );
@@ -243,7 +243,7 @@ export default async function spotifyRoutes(fastify) {
     '/top-tracks',
     {
       schema: topTracksSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.topTracks
   );
@@ -253,7 +253,7 @@ export default async function spotifyRoutes(fastify) {
     '/library',
     {
       schema: urisBodySchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.saveToLibrary
   );
@@ -262,7 +262,7 @@ export default async function spotifyRoutes(fastify) {
     '/library',
     {
       schema: urisBodySchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.removeFromLibrary
   );
@@ -271,7 +271,7 @@ export default async function spotifyRoutes(fastify) {
     '/library/contains',
     {
       schema: urisQuerySchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.checkLibrary
   );
@@ -281,7 +281,7 @@ export default async function spotifyRoutes(fastify) {
     '/playlists',
     {
       schema: paginationSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.playlists
   );
@@ -290,7 +290,7 @@ export default async function spotifyRoutes(fastify) {
     '/playlists/:playlistId/tracks',
     {
       schema: playlistTracksSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.playlistTracks
   );
@@ -299,7 +299,7 @@ export default async function spotifyRoutes(fastify) {
     '/playlists',
     {
       schema: createPlaylistSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.createPlaylist
   );
@@ -308,7 +308,7 @@ export default async function spotifyRoutes(fastify) {
     '/playlists/:playlistId/tracks',
     {
       schema: addToPlaylistSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.addToPlaylist
   );
@@ -316,7 +316,7 @@ export default async function spotifyRoutes(fastify) {
   // ——— Player / Devices ———
   fastify.get(
     '/devices',
-    { preHandler: [fastify.requireAuth] },
+    { preHandler: [fastify.requireActiveUser] },
     spotifyController.devices
   );
 
@@ -324,20 +324,20 @@ export default async function spotifyRoutes(fastify) {
     '/player/transfer',
     {
       schema: transferPlaybackSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.transferPlayback
   );
 
   fastify.get(
     '/player',
-    { preHandler: [fastify.requireAuth] },
+    { preHandler: [fastify.requireActiveUser] },
     spotifyController.playbackState
   );
 
   fastify.get(
     '/player/currently-playing',
-    { preHandler: [fastify.requireAuth] },
+    { preHandler: [fastify.requireActiveUser] },
     spotifyController.currentlyPlaying
   );
 
@@ -345,14 +345,14 @@ export default async function spotifyRoutes(fastify) {
     '/player/queue',
     {
       schema: addToQueueSchema,
-      preHandler: [fastify.requireAuth],
+      preHandler: [fastify.requireActiveUser],
     },
     spotifyController.addToQueue
   );
 
   fastify.get(
     '/player/queue',
-    { preHandler: [fastify.requireAuth] },
+    { preHandler: [fastify.requireActiveUser] },
     spotifyController.getQueue
   );
 }

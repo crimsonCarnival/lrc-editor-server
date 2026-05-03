@@ -25,7 +25,8 @@ function formatWordsToLrc(words, precision = 'hundredths') {
       (c >= 0xFF00 && c <= 0xFFEF) || (c >= 0x20000 && c <= 0x2FA1F);
   };
   return words.map((w, i, arr) => {
-    const token = `${formatWordTimestamp(w.time, precision)}${w.word}`;
+    const ts = w.time != null ? formatWordTimestamp(w.time, precision) : '';
+    const token = `${ts}${w.word}`;
     const next = arr[i + 1];
     if (!next) return token;
     const lastChar = w.word.slice(-1);
@@ -35,6 +36,7 @@ function formatWordsToLrc(words, precision = 'hundredths') {
 }
 
 function formatWordTimestamp(seconds, precision = 'hundredths') {
+  if (seconds == null) return '';
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   const mm = String(mins).padStart(2, '0');
@@ -276,21 +278,49 @@ export function parseLrcSrtFile(content, filename) {
           existing.secondaryWords = secWords;
           existing.secondary = line.text.replace(/<\d{1,2}:\d{2}\.\d{2,3}>/g, '').trim();
         } else if (/\{[^|{]+\|[^}]+\}/.test(line.text)) {
+          // Ruby markup like {持|も}ち{上|あ}げて — strip to plain text and merge readings into words
           const { plainText, segments } = parseRubyMarkup(line.text);
           existing.secondary = plainText;
-          if (existing.words?.length) {
-            const readingAt = new Map();
-            let pos = 0;
+          
+          if (!existing.words?.length) {
+            // Case 1: No word timestamps on primary line — use segments directly as words
+            existing.words = segments.map(s => ({
+              word: s.text,
+              reading: s.reading || undefined,
+              time: null
+            })).filter(w => w.word.trim());
+          } else {
+            // Case 2: Primary line has word timestamps — align segments with existing words
+            const oldWords = [...existing.words];
+            const newWords = [];
+            let oldIdx = 0;
+            
             for (const seg of segments) {
-              if (seg.reading) readingAt.set(pos, seg.reading);
-              pos += [...seg.text].length;
+              const segText = seg.text;
+              if (!segText) continue;
+              
+              // Find which old words (or characters) correspond to this segment
+              let consumed = '';
+              let firstTime = null;
+              
+              while (oldIdx < oldWords.length && consumed.length < segText.length) {
+                const w = oldWords[oldIdx];
+                if (firstTime === null) firstTime = w.time;
+                consumed += w.word;
+                oldIdx++;
+              }
+              
+              newWords.push({
+                word: segText,
+                reading: seg.reading || undefined,
+                time: firstTime
+              });
             }
-            let c = 0;
-            existing.words = existing.words.map((w) => {
-              const reading = readingAt.get(c);
-              c += [...w.word].length;
-              return reading ? { ...w, reading } : w;
-            });
+            // Append any leftover words
+            if (oldIdx < oldWords.length) {
+              newWords.push(...oldWords.slice(oldIdx));
+            }
+            existing.words = newWords;
           }
         } else {
           existing.secondary = line.text;

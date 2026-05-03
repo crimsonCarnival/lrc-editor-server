@@ -26,7 +26,7 @@ export async function login(req, res) {
  * POST /auth/refresh — refresh an access token.
  */
 export async function refresh(req, res) {
-  const result = await authService.refresh(req.body.refreshToken, req.server.jwt);
+  const result = await authService.refresh(req.body.refreshToken, req.server.jwt, req.ip);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }
@@ -37,7 +37,7 @@ export async function refresh(req, res) {
  * GET /auth/me — get current user profile.
  */
 export async function me(req, res) {
-  const result = await authService.getProfile(req.userId);
+  const result = await authService.getProfile(req.userId, req.ip);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }

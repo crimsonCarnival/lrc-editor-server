@@ -96,9 +96,10 @@ export async function login(data, jwt, ip) {
  * Refresh an access token using a valid refresh token.
  * @param {string} refreshToken
  * @param {{ verifyToken: Function, signAccess: Function, signRefresh: Function }} jwt
+ * @param {string} ip
  * @returns {{ accessToken, refreshToken }|{ error: string, status: number }}
  */
-export async function refresh(refreshToken, jwt) {
+export async function refresh(refreshToken, jwt, ip) {
   let decoded;
   try {
     decoded = jwt.verifyToken(refreshToken);
@@ -111,6 +112,11 @@ export async function refresh(refreshToken, jwt) {
     return { error: 'User not found', status: 401 };
   }
 
+  if (ip) {
+    user.lastIp = ip;
+    await user.save();
+  }
+
   const tokenPayload = { sub: user._id.toString() };
   return {
     accessToken: jwt.signAccess(tokenPayload),
@@ -121,12 +127,18 @@ export async function refresh(refreshToken, jwt) {
 /**
  * Get current user profile.
  * @param {string} userId
+ * @param {string} ip
  * @returns {{ user }|{ error: string, status: number }}
  */
-export async function getProfile(userId) {
+export async function getProfile(userId, ip) {
   const user = await User.findById(userId);
   if (!user || user.isDeleted) return { error: 'User not found', status: 404 };
   
+  if (ip) {
+    user.lastIp = ip;
+    await user.save();
+  }
+
   await user.checkBanStatus();
   
   return { user: user.toPublic() };

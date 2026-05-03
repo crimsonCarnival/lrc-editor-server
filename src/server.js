@@ -34,6 +34,7 @@ const envToLogger = {
 async function build() {
   const app = Fastify({
     logger: envToLogger[process.env.NODE_ENV] ?? envToLogger.development,
+    measureResponseTime: true,
   });
 
   // --- Plugins ---

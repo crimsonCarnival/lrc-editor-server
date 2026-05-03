@@ -39,6 +39,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+      immutable: true,
+    },
     spotify: {
       spotifyId: { type: String, default: null },
       accessToken: { type: String, default: null },

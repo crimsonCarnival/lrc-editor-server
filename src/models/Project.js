@@ -31,6 +31,8 @@ const metadataSchema = new mongoose.Schema(
       },
       set: (v) => (Array.isArray(v) ? v.map((t) => (typeof t === 'string' ? stripHtml(t).slice(0, 50) : t)) : v),
     },
+    coverUrl: { type: String, default: '', maxlength: 2048 },
+    coverPublicId: { type: String, default: '', maxlength: 500 },
   },
   { _id: false }
 );

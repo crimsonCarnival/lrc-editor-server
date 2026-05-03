@@ -72,7 +72,6 @@ export function generateAvatarSignature() {
   const params = {
     timestamp,
     folder: 'lyrics-syncer/avatars',
-    transformation: 'c_fill,w_200,h_200,g_face',
   };
   const signature = cloudinary.utils.api_sign_request(params, apiSecret);
 
@@ -99,7 +98,6 @@ export function generateCoverSignature() {
   const params = {
     timestamp,
     folder: 'lyrics-syncer/covers',
-    transformation: 'c_fill,w_400,h_400',
   };
   const signature = cloudinary.utils.api_sign_request(params, apiSecret);
 

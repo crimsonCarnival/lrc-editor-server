@@ -13,6 +13,9 @@ import lyricsRoutes from './routes/lyrics.js';
 import editorRoutes from './routes/editor.js';
 import settingsRoutes from './routes/settings.js';
 
+import adminRoutes from './routes/admin.js';
+import requestLogger from './plugins/requestLogger.js';
+
 const envToLogger = {
   development: { 
     level: 'info', 
@@ -39,6 +42,7 @@ async function build() {
   await app.register(rateLimit);
   await app.register(mongoose);
   await app.register(auth);
+  await app.register(requestLogger);
 
   // --- Request Body Logging (Development) ---
   if (process.env.NODE_ENV === 'development') {
@@ -61,6 +65,7 @@ async function build() {
   await app.register(lyricsRoutes, { prefix: '/lyrics' });
   await app.register(editorRoutes, { prefix: '/editor' });
   await app.register(settingsRoutes, { prefix: '/settings' });
+  await app.register(adminRoutes, { prefix: '/admin' });
 
   // --- Health ---
   app.get('/health', async () => ({ status: 'ok' }));

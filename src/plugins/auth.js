@@ -35,7 +35,7 @@ async function authPlugin(fastify) {
     }
   });
 
-  // Hook: requireAuth — rejects 401 if no valid token
+  // Hook: requireAuth — rejects 401 if no valid token (allows banned users so they can appeal/logout)
   fastify.decorate('requireAuth', async function (request, reply) {
     const header = request.headers.authorization;
     if (!header?.startsWith('Bearer ')) {
@@ -44,6 +44,44 @@ async function authPlugin(fastify) {
     try {
       const decoded = verifyToken(header.slice(7));
       request.userId = decoded.sub;
+    } catch {
+      return reply.code(401).send({ error: 'Invalid or expired token' });
+    }
+  });
+
+  // Hook: requireActiveUser — rejects 401 if no valid token, 403 if banned
+  fastify.decorate('requireActiveUser', async function (request, reply) {
+    const header = request.headers.authorization;
+    if (!header?.startsWith('Bearer ')) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    try {
+      const decoded = verifyToken(header.slice(7));
+      request.userId = decoded.sub;
+      const User = (await import('../models/User.js')).default;
+      const user = await User.findById(decoded.sub).select('isBanned deletedAt');
+      if (!user || user.deletedAt) return reply.code(401).send({ error: 'User not found' });
+      if (user.isBanned) return reply.code(403).send({ error: 'User is banned' });
+    } catch {
+      return reply.code(401).send({ error: 'Invalid or expired token' });
+    }
+  });
+
+  // Hook: requireAdmin — rejects 401 if no valid token, 403 if not admin
+  fastify.decorate('requireAdmin', async function (request, reply) {
+    const header = request.headers.authorization;
+    if (!header?.startsWith('Bearer ')) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    try {
+      const decoded = verifyToken(header.slice(7));
+      request.userId = decoded.sub;
+      
+      const User = (await import('../models/User.js')).default;
+      const user = await User.findById(decoded.sub).select('role isBanned deletedAt');
+      if (!user || user.deletedAt) return reply.code(401).send({ error: 'User not found' });
+      if (user.isBanned) return reply.code(403).send({ error: 'User is banned' });
+      if (user.role !== 'admin') return reply.code(403).send({ error: 'Admin access required' });
     } catch {
       return reply.code(401).send({ error: 'Invalid or expired token' });
     }

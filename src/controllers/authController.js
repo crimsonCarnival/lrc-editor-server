@@ -54,3 +54,11 @@ export async function updateProfile(req, res) {
   }
   return res.send(result);
 }
+
+export async function submitAppeal(req, res) {
+  const result = await authService.submitAppeal(req.userId, req.body.appealText);
+  if (result.error) {
+    return res.code(result.status).send({ error: result.error });
+  }
+  return res.send(result);
+}

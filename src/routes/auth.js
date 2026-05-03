@@ -65,4 +65,5 @@ export default async function authRoutes(fastify) {
   fastify.post('/refresh', { schema: refreshSchema }, authController.refresh);
   fastify.get('/me', { preHandler: [fastify.requireAuth] }, authController.me);
   fastify.patch('/profile', { schema: updateProfileSchema, preHandler: [fastify.requireAuth] }, authController.updateProfile);
+  fastify.post('/appeal', { preHandler: [fastify.requireAuth] }, authController.submitAppeal);
 }

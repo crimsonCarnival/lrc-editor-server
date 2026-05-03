@@ -132,3 +132,18 @@ export async function updateProfile(userId, data, logger) {
   await user.save();
   return { user: user.toPublic() };
 }
+
+/**
+ * Submit an appeal for a banned user.
+ */
+export async function submitAppeal(userId, appealText) {
+  const user = await User.findById(userId);
+  if (!user) return { error: 'User not found', status: 404 };
+  if (!user.isBanned) return { error: 'User is not banned', status: 400 };
+
+  user.banAppeal = appealText.slice(0, 1000);
+  user.appealAt = new Date();
+  await user.save();
+
+  return { user: user.toPublic() };
+}

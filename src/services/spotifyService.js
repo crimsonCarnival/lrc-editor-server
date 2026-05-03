@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { stripHtml } from '../utils/sanitize.js';
 import User from '../models/User.js';
+import { LRUCache } from '@crimson-carnival/ds-js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me';
 
@@ -9,6 +10,9 @@ const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_AUTHORIZE_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 const TRACK_URL_RE = /(?:spotify\.com\/track\/|spotify:track:)([a-zA-Z0-9]{22})/;
+
+// Cache for Spotify track metadata resolution (Capacity: 100 tracks)
+const trackCache = new LRUCache(100);
 
 const SCOPES = [
   'user-read-private',
@@ -290,6 +294,10 @@ export async function resolveTrack(url) {
     return { error: 'Invalid Spotify track URL', status: 400 };
   }
 
+  // Check cache first
+  const cached = trackCache.get(trackId);
+  if (cached) return cached;
+
   const token = await getClientToken();
   const response = await fetch(`${SPOTIFY_API_BASE}/tracks/${encodeURIComponent(trackId)}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -304,7 +312,7 @@ export async function resolveTrack(url) {
 
   const track = await response.json();
 
-  return {
+  const result = {
     trackId: track.id,
     name: stripHtml(track.name || ''),
     artist: stripHtml(track.artists?.map((a) => a.name).join(', ') || ''),
@@ -313,6 +321,11 @@ export async function resolveTrack(url) {
     previewUrl: track.preview_url || null,
     albumArt: track.album?.images?.[0]?.url || null,
   };
+
+  // Store in cache
+  trackCache.put(trackId, result);
+
+  return result;
 }
 
 // ——— Helper: authenticated Spotify API request ———

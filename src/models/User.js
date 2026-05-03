@@ -39,11 +39,40 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    bannedUntil: {
+      type: Date,
+      default: null,
+    },
+    banReason: {
+      type: String,
+      default: null,
+      maxlength: 500,
+    },
+    banAppeal: {
+      type: String,
+      default: null,
+      maxlength: 1000,
+    },
+    appealAt: {
+      type: Date,
+      default: null,
+    },
+    appealResolvedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     role: {
       type: String,
       enum: ['user', 'admin'],
       default: 'user',
-      immutable: true,
     },
     spotify: {
       spotifyId: { type: String, default: null },

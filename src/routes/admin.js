@@ -18,4 +18,8 @@ export default async function adminRoutes(fastify) {
   fastify.delete('/banned-ips/:id', adminController.unblockIp);
   fastify.get('/audit-logs', adminController.getAuditLogs);
   fastify.get('/logs', adminController.getLogs);
+
+  fastify.get('/banned-devices', adminController.getBannedDevices);
+  fastify.post('/banned-devices', adminController.blockDevice);
+  fastify.delete('/banned-devices/:id', adminController.unblockDevice);
 }

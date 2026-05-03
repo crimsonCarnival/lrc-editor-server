@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import BannedIp from '../models/BannedIp.js';
+import BannedDevice from '../models/BannedDevice.js';
 import Project from '../models/Project.js';
 import Upload from '../models/Upload.js';
 import AdminLog from '../models/AdminLog.js';
@@ -68,7 +69,7 @@ export async function getStats() {
   };
 }
 
-export async function toggleBan(userId, banStatus, reason = null, bannedUntil = null, banIp = false, adminId = null) {
+export async function toggleBan(userId, banStatus, reason = null, bannedUntil = null, banIp = false, banDevice = false, adminId = null) {
   const user = await User.findById(userId);
   if (!user) return { error: 'User not found', status: 404 };
   if (user.role === 'admin') return { error: 'Cannot ban an admin', status: 403 };
@@ -87,6 +88,21 @@ export async function toggleBan(userId, banStatus, reason = null, bannedUntil = 
           { ip: user.lastIp },
           { 
             ip: user.lastIp, 
+            reason: `Associated with banned user: ${user.username}`,
+            userId: user._id,
+            bannedBy: adminId
+          },
+          { upsert: true }
+        );
+      }
+    }
+
+    if (banDevice && user.deviceIds && user.deviceIds.length > 0) {
+      for (const deviceId of user.deviceIds) {
+        await BannedDevice.findOneAndUpdate(
+          { deviceId },
+          {
+            deviceId,
             reason: `Associated with banned user: ${user.username}`,
             userId: user._id,
             bannedBy: adminId
@@ -116,7 +132,7 @@ export async function toggleBan(userId, banStatus, reason = null, bannedUntil = 
       action: banStatus ? 'ban_user' : 'unban_user',
       targetId: user._id,
       targetName: user.username,
-      details: banStatus ? `Reason: ${reason}${banIp ? ' (IP Banned)' : ''}` : 'Appeal approved / Manual unban'
+      details: banStatus ? `Reason: ${reason}${banIp ? ' (IP Banned)' : ''}${banDevice ? ' (Device Banned)' : ''}` : 'Appeal approved / Manual unban'
     });
   }
 
@@ -254,6 +270,31 @@ export async function blockIp(ip, reason, adminId) {
 
 export async function unblockIp(ipId) {
   await BannedIp.findByIdAndDelete(ipId);
+  return { success: true };
+}
+
+/**
+ * Device Blocklist Management
+ */
+export async function listBannedDevices() {
+  const devices = await BannedDevice.find().sort({ createdAt: -1 }).lean();
+  return devices.map(d => ({ ...d, id: d._id.toString() }));
+}
+
+export async function blockDevice(deviceId, reason, adminId) {
+  const existing = await BannedDevice.findOne({ deviceId });
+  if (existing) return { error: 'Device already banned', status: 409 };
+
+  const bannedDevice = await BannedDevice.create({
+    deviceId,
+    reason,
+    bannedBy: adminId
+  });
+  return { success: true, bannedDevice };
+}
+
+export async function unblockDevice(deviceIdId) {
+  await BannedDevice.findByIdAndDelete(deviceIdId);
   return { success: true };
 }
 

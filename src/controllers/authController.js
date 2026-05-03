@@ -4,7 +4,8 @@ import * as authService from '../services/authService.js';
  * POST /auth/register — register a new user.
  */
 export async function register(req, res) {
-  const result = await authService.register(req.body, req.server.jwt, req.ip);
+  const deviceId = req.headers['x-device-id'];
+  const result = await authService.register(req.body, req.server.jwt, req.ip, deviceId);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }
@@ -15,7 +16,8 @@ export async function register(req, res) {
  * POST /auth/login — authenticate a user.
  */
 export async function login(req, res) {
-  const result = await authService.login(req.body, req.server.jwt, req.ip);
+  const deviceId = req.headers['x-device-id'];
+  const result = await authService.login(req.body, req.server.jwt, req.ip, deviceId);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }
@@ -26,7 +28,8 @@ export async function login(req, res) {
  * POST /auth/refresh — refresh an access token.
  */
 export async function refresh(req, res) {
-  const result = await authService.refresh(req.body.refreshToken, req.server.jwt, req.ip);
+  const deviceId = req.headers['x-device-id'];
+  const result = await authService.refresh(req.body.refreshToken, req.server.jwt, req.ip, deviceId);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }
@@ -37,7 +40,8 @@ export async function refresh(req, res) {
  * GET /auth/me — get current user profile.
  */
 export async function me(req, res) {
-  const result = await authService.getProfile(req.userId, req.ip);
+  const deviceId = req.headers['x-device-id'];
+  const result = await authService.getProfile(req.userId, req.ip, deviceId);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }

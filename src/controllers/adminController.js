@@ -7,8 +7,8 @@ export async function getUsers(req, res) {
 }
 
 export async function banUser(req, res) {
-  const { reason, bannedUntil, banIp } = req.body;
-  const result = await adminService.toggleBan(req.params.id, true, reason, bannedUntil, banIp, req.userId);
+  const { reason, bannedUntil, banIp, banDevice } = req.body;
+  const result = await adminService.toggleBan(req.params.id, true, reason, bannedUntil, banIp, banDevice, req.userId);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -72,4 +72,21 @@ export async function getAuditLogs(req, res) {
 
 export async function getLogs(_, res) {
   return res.send({ logs: requestLog.toArray() });
+}
+
+export async function getBannedDevices(_, res) {
+  const result = await adminService.listBannedDevices();
+  return res.send(result);
+}
+
+export async function blockDevice(req, res) {
+  const { deviceId, reason } = req.body;
+  const result = await adminService.blockDevice(deviceId, reason, req.userId);
+  if (result.error) return res.code(result.status).send({ error: result.error });
+  return res.send(result);
+}
+
+export async function unblockDevice(req, res) {
+  const result = await adminService.unblockDevice(req.params.id);
+  return res.send(result);
 }

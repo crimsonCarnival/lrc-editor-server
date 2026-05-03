@@ -99,6 +99,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    deviceIds: {
+      type: [String],
+      default: [],
+      index: true,
+    },
   },
   { timestamps: true }
 );

@@ -1,6 +1,25 @@
 import User from '../models/User.js';
 import BannedIp from '../models/BannedIp.js';
+import BannedDevice from '../models/BannedDevice.js';
 import { v2 as cloudinary } from 'cloudinary';
+
+async function checkDevice(deviceId, user = null) {
+  if (!deviceId) return { error: null };
+  
+  const deviceBanned = await BannedDevice.findOne({ deviceId });
+  if (deviceBanned) {
+    return { error: 'Access restricted from this device due to previous violations.', status: 403 };
+  }
+
+  if (user) {
+    if (!user.deviceIds.includes(deviceId)) {
+      user.deviceIds.push(deviceId);
+      await user.save();
+    }
+  }
+  
+  return { error: null };
+}
 
 /**
  * Register a new user.
@@ -9,12 +28,17 @@ import { v2 as cloudinary } from 'cloudinary';
  * @param {string} ip
  * @returns {{ user, accessToken, refreshToken }|{ error: string, status: number }}
  */
-export async function register(data, jwt, ip) {
+export async function register(data, jwt, ip, deviceId) {
   // Check if IP is banned
   const ipBanned = await BannedIp.findOne({ ip });
   if (ipBanned) {
     return { error: 'Registration restricted from this network.', status: 403 };
   }
+
+  // Check if device is banned
+  const deviceCheck = await checkDevice(deviceId);
+  if (deviceCheck.error) return deviceCheck;
+
   const { username, email, password } = data;
 
   const query = [];
@@ -41,7 +65,9 @@ export async function register(data, jwt, ip) {
     ...(username ? { username } : {}),
     ...(email ? { email: email.toLowerCase() } : {}),
     passwordHash,
+    passwordHash,
     lastIp: ip,
+    deviceIds: deviceId ? [deviceId] : [],
   });
 
   const tokenPayload = { sub: user._id.toString() };
@@ -59,12 +85,17 @@ export async function register(data, jwt, ip) {
  * @param {string} ip
  * @returns {{ user, accessToken, refreshToken }|{ error: string, status: number }}
  */
-export async function login(data, jwt, ip) {
+export async function login(data, jwt, ip, deviceId) {
   // Check if IP is banned
   const ipBanned = await BannedIp.findOne({ ip });
   if (ipBanned) {
     return { error: 'Access restricted from this network.', status: 403 };
   }
+
+  // Check if device is banned
+  const deviceCheck = await checkDevice(deviceId);
+  if (deviceCheck.error) return deviceCheck;
+
   const { identifier, password } = data;
   const normalised = identifier.toLowerCase().trim();
 
@@ -82,6 +113,7 @@ export async function login(data, jwt, ip) {
   }
 
   user.lastIp = ip;
+  await checkDevice(deviceId, user); // Link device to user
   await user.save();
 
   const tokenPayload = { sub: user._id.toString() };
@@ -99,7 +131,7 @@ export async function login(data, jwt, ip) {
  * @param {string} ip
  * @returns {{ accessToken, refreshToken }|{ error: string, status: number }}
  */
-export async function refresh(refreshToken, jwt, ip) {
+export async function refresh(refreshToken, jwt, ip, deviceId) {
   let decoded;
   try {
     decoded = jwt.verifyToken(refreshToken);
@@ -111,6 +143,10 @@ export async function refresh(refreshToken, jwt, ip) {
   if (!user) {
     return { error: 'User not found', status: 401 };
   }
+
+  // Check device
+  const deviceCheck = await checkDevice(deviceId, user);
+  if (deviceCheck.error) return deviceCheck;
 
   if (ip) {
     user.lastIp = ip;
@@ -130,10 +166,14 @@ export async function refresh(refreshToken, jwt, ip) {
  * @param {string} ip
  * @returns {{ user }|{ error: string, status: number }}
  */
-export async function getProfile(userId, ip) {
+export async function getProfile(userId, ip, deviceId) {
   const user = await User.findById(userId);
   if (!user || user.isDeleted) return { error: 'User not found', status: 404 };
   
+  // Check device
+  const deviceCheck = await checkDevice(deviceId, user);
+  if (deviceCheck.error) return deviceCheck;
+
   if (ip) {
     user.lastIp = ip;
     await user.save();

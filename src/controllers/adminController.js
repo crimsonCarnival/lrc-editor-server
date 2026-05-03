@@ -43,6 +43,33 @@ export async function reactivateUser(req, res) {
   return res.send(result);
 }
 
+export async function getStats(_, res) {
+  const result = await adminService.getStats();
+  return res.send(result);
+}
+
+export async function getBannedIps(_, res) {
+  const result = await adminService.listBannedIps();
+  return res.send(result);
+}
+
+export async function blockIp(req, res) {
+  const { ip, reason } = req.body;
+  const result = await adminService.blockIp(ip, reason, req.userId);
+  if (result.error) return res.code(result.status).send({ error: result.error });
+  return res.send(result);
+}
+
+export async function unblockIp(req, res) {
+  const result = await adminService.unblockIp(req.params.id);
+  return res.send(result);
+}
+
+export async function getAuditLogs(req, res) {
+  const result = await adminService.listAdminLogs(req.query);
+  return res.send(result);
+}
+
 export async function getLogs(_, res) {
   return res.send({ logs: requestLog.toArray() });
 }

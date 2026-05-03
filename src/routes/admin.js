@@ -12,5 +12,10 @@ export default async function adminRoutes(fastify) {
   fastify.delete('/users/:id', adminController.deleteUser);
   fastify.post('/users/:id/reactivate', adminController.reactivateUser);
   
+  fastify.get('/stats', adminController.getStats);
+  fastify.get('/banned-ips', adminController.getBannedIps);
+  fastify.post('/banned-ips', adminController.blockIp);
+  fastify.delete('/banned-ips/:id', adminController.unblockIp);
+  fastify.get('/audit-logs', adminController.getAuditLogs);
   fastify.get('/logs', adminController.getLogs);
 }

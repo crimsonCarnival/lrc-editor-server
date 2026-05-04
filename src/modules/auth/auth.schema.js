@@ -1,0 +1,48 @@
+/**
+ * Auth module — request validation schemas.
+ */
+
+export const registerSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_-]+$' },
+      email: { type: 'string', format: 'email', maxLength: 254 },
+      password: { type: 'string', minLength: 8, maxLength: 128 },
+    },
+    required: ['password'],
+    anyOf: [{ required: ['username'] }, { required: ['email'] }],
+  },
+};
+
+export const loginSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      identifier: { type: 'string', minLength: 1, maxLength: 254 },
+      password: { type: 'string', minLength: 1, maxLength: 128 },
+    },
+    required: ['identifier', 'password'],
+  },
+};
+
+export const refreshSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      refreshToken: { type: 'string', minLength: 1, maxLength: 2048 },
+    },
+    required: ['refreshToken'],
+  },
+};
+
+export const updateProfileSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      avatarUrl: { type: ['string', 'null'], maxLength: 500 },
+      avatarPublicId: { type: ['string', 'null'], maxLength: 500 },
+    },
+    additionalProperties: false,
+  },
+};

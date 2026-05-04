@@ -5,15 +5,15 @@ import cors from './plugins/cors.js';
 import helmet from './plugins/helmet.js';
 import rateLimit from './plugins/rateLimit.js';
 import auth from './plugins/auth.js';
-import authRoutes from './routes/auth.js';
-import projectRoutes from './routes/projects.js';
-import uploadRoutes from './routes/uploads.js';
-import spotifyRoutes from './routes/spotify.js';
-import lyricsRoutes from './routes/lyrics.js';
-import editorRoutes from './routes/editor.js';
-import settingsRoutes from './routes/settings.js';
 
-import adminRoutes from './routes/admin.js';
+// ─── Module routes ────────────────────────────────────────────────
+import authRoutes from './modules/auth/auth.routes.js';
+import projectRoutes from './modules/projects/projects.routes.js';
+import lyricsRoutes from './modules/lyrics/lyrics.routes.js';
+import uploadRoutes from './modules/uploads/uploads.routes.js';
+import settingsRoutes from './modules/settings/settings.routes.js';
+import spotifyRoutes from './modules/spotify/spotify.routes.js';
+import adminRoutes from './modules/admin/admin.routes.js';
 
 const envToLogger = {
   development: {
@@ -23,9 +23,9 @@ const envToLogger = {
       options: {
         translateTime: 'HH:MM:ss Z',
         ignore: 'pid,hostname',
-        singleLine: false
-      }
-    }
+        singleLine: false,
+      },
+    },
   },
   production: { level: 'warn' },
 };
@@ -37,41 +37,45 @@ async function build() {
     trustProxy: true,
   });
 
-  // --- Plugins ---
+  // ─── Plugins ──────────────────────────────────────────────────────
   await app.register(helmet);
   await app.register(cors);
   await app.register(rateLimit);
   await app.register(mongoose);
   await app.register(auth);
 
-  // --- Request Body Logging (Development) ---
+  // ─── Development request body logging ────────────────────────────
   if (process.env.NODE_ENV === 'development') {
-    app.addHook('preHandler', async (request, reply) => {
+    app.addHook('preHandler', async (request) => {
       if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
         request.log.info({
           method: request.method,
           url: request.url,
           body: request.body,
-        }, '📨 Request Body');
+        }, '📝 Request Body');
       }
     });
   }
 
-  // --- Routes ---
+  // ─── Routes ───────────────────────────────────────────────────────
   await app.register(authRoutes, { prefix: '/auth' });
   await app.register(projectRoutes, { prefix: '/projects' });
   await app.register(uploadRoutes, { prefix: '/uploads' });
   await app.register(spotifyRoutes, { prefix: '/spotify' });
-  await app.register(lyricsRoutes, { prefix: '/lyrics' });
-  await app.register(editorRoutes, { prefix: '/editor' });
   await app.register(settingsRoutes, { prefix: '/settings' });
   await app.register(adminRoutes, { prefix: '/admin' });
 
-  // --- Health ---
-  app.get('/health', async () => ({ status: 'ok' }));
+  // Lyrics module handles both /lyrics and /editor prefixes
+  // (same domain, backward-compatible URL preservation)
+  await app.register(lyricsRoutes, { prefix: '/lyrics' });
+  await app.register(lyricsRoutes, { prefix: '/editor' });
+
+  // ─── Health ───────────────────────────────────────────────────────
+  app.get('/health', async () => ({ status: 'ok', version: process.env.npm_package_version }));
 
   return app;
 }
+
 (async () => {
   const app = await build();
   try {

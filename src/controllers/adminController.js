@@ -1,5 +1,4 @@
 import * as adminService from '../services/adminService.js';
-import { requestLog } from '../plugins/requestLogger.js';
 
 export async function getUsers(req, res) {
   const result = await adminService.listUsers(req.query);
@@ -70,9 +69,6 @@ export async function getAuditLogs(req, res) {
   return res.send(result);
 }
 
-export async function getLogs(_, res) {
-  return res.send({ logs: requestLog.toArray() });
-}
 
 export async function getBannedDevices(_, res) {
   const result = await adminService.listBannedDevices();

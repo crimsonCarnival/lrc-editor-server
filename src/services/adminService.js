@@ -28,33 +28,61 @@ export async function listUsers(query = {}) {
   }
   
   const total = await User.countDocuments(filter);
+  // Exclude password hash and large rarely-needed fields from the wire payload
   const usersRaw = await User.find(filter)
-    .select('-passwordHash')
+    .select('-passwordHash -refreshTokens')
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(Number(limit))
     .lean();
     
-  // Add resource counts
-  const users = await Promise.all(usersRaw.map(async u => {
-    const projectCount = await Project.countDocuments({ owner: u._id });
-    const uploadCount = await Upload.countDocuments({ uploader: u._id });
-    return { 
-      ...u, 
-      id: u._id.toString(),
-      projectCount,
-      uploadCount
-    };
+  if (usersRaw.length === 0) {
+    return { users: [], total, page: Number(page), limit: Number(limit) };
+  }
+
+  const userIds = usersRaw.map(u => u._id);
+
+  // Batch-count projects and uploads for all users in two aggregate calls (avoids N+1)
+  const [projectCounts, uploadCounts] = await Promise.all([
+    Project.aggregate([
+      { $match: { userId: { $in: userIds } } },
+      { $group: { _id: '$userId', count: { $sum: 1 } } },
+    ]),
+    Upload.aggregate([
+      { $match: { userId: { $in: userIds } } },
+      { $group: { _id: '$userId', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const projectCountMap = new Map(projectCounts.map(r => [r._id.toString(), r.count]));
+  const uploadCountMap  = new Map(uploadCounts.map(r => [r._id.toString(), r.count]));
+
+  const users = usersRaw.map(u => ({
+    ...u,
+    id: u._id.toString(),
+    projectCount: projectCountMap.get(u._id.toString()) ?? 0,
+    uploadCount:  uploadCountMap.get(u._id.toString()) ?? 0,
   }));
-    
+
   return { users, total, page: Number(page), limit: Number(limit) };
 }
 
 export async function getStats() {
-  const totalUsers = await User.countDocuments();
-  const bannedUsers = await User.countDocuments({ isBanned: true });
-  const pendingAppeals = await User.countDocuments({ appealStatus: 'pending' });
-  const deletedUsers = await User.countDocuments({ isDeleted: true });
+  const [
+    totalUsers,
+    bannedUsers,
+    pendingAppeals,
+    deletedUsers,
+    totalProjects,
+    totalUploads
+  ] = await Promise.all([
+    User.countDocuments(),
+    User.countDocuments({ isBanned: true }),
+    User.countDocuments({ appealStatus: 'pending' }),
+    User.countDocuments({ isDeleted: true }),
+    Project.countDocuments({}),
+    Upload.countDocuments()
+  ]);
   
   // "Active" defined as users who logged in/refreshed in the last 24 hours
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -65,7 +93,9 @@ export async function getStats() {
     bannedUsers,
     pendingAppeals,
     deletedUsers,
-    activeUsers
+    activeUsers,
+    totalProjects,
+    totalUploads
   };
 }
 

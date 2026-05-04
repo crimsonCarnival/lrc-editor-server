@@ -12,7 +12,7 @@ const JWT_ISSUER = process.env.JWT_ISSUER;
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE;
 
 function signAccess(payload) {
-  return jwt.sign(payload, JWT_SECRET, { 
+  return jwt.sign(payload, JWT_SECRET, {
     expiresIn: ACCESS_EXPIRY,
     issuer: JWT_ISSUER,
     audience: JWT_AUDIENCE,
@@ -21,7 +21,7 @@ function signAccess(payload) {
 }
 
 function signRefresh(payload) {
-  return jwt.sign(payload, JWT_SECRET, { 
+  return jwt.sign(payload, JWT_SECRET, {
     expiresIn: REFRESH_EXPIRY,
     issuer: JWT_ISSUER,
     audience: JWT_AUDIENCE,
@@ -30,8 +30,8 @@ function signRefresh(payload) {
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET, { 
-    algorithms: ['HS256'], 
+  return jwt.verify(token, JWT_SECRET, {
+    algorithms: ['HS256'],
     issuer: JWT_ISSUER,
     audience: JWT_AUDIENCE,
     allowInvalidAsymmetricKeyTypes: false,

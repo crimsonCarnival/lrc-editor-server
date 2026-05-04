@@ -76,14 +76,9 @@ const projectSchema = new mongoose.Schema(
       default: 'temporary',
     },
     readOnly: { type: Boolean, default: true },
+    public: { type: Boolean, default: true },
 
-    // Optimistic locking
-    version: { type: Number, default: 1 },
 
-    // Soft delete
-    deletedAt: { type: Date, default: null },
-
-    // Collaboration metadata
     lastEditedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -98,10 +93,8 @@ const projectSchema = new mongoose.Schema(
 // TTL index — MongoDB auto-deletes documents when expiresAt is reached
 projectSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-// Soft-delete filter: exclude deleted projects by default
-projectSchema.index({ deletedAt: 1 });
-// Supports list query: by owner + not deleted, sorted by recent updates
-projectSchema.index({ userId: 1, deletedAt: 1, updatedAt: -1 });
+// Supports list query: by owner, sorted by recent updates
+projectSchema.index({ userId: 1, updatedAt: -1 });
 
 // Methods
 projectSchema.methods.isOwnedBy = function (userId) {

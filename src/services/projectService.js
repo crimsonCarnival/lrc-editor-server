@@ -53,7 +53,7 @@ export async function createProject(data, userId) {
  * @returns {object[]} Array of project summaries
  */
 export async function listProjects(userId) {
-  const projects = await Project.find({ userId, deletedAt: null })
+  const projects = await Project.find({ userId })
     .select('projectId title metadata uploadId readOnly createdAt updatedAt')
     .populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title')
     .sort({ updatedAt: -1 })
@@ -119,7 +119,7 @@ export async function listProjects(userId) {
  * @returns {object|null} Public project object with lyrics inlined
  */
 export async function getProject(projectId) {
-  const project = await Project.findOne({ projectId, deletedAt: null })
+  const project = await Project.findOne({ projectId })
     .populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title');
   if (!project) return null;
 
@@ -151,7 +151,7 @@ export async function getProject(projectId) {
  * @returns {{ project: object }|{ error: string, status: number }}
  */
 export async function updateProject(projectId, data, userId) {
-  const project = await Project.findOne({ projectId, deletedAt: null });
+  const project = await Project.findOne({ projectId });
   if (!project) return { error: 'Project not found', status: 404 };
 
   if (project.userId && !project.isOwnedBy(userId)) {
@@ -167,6 +167,7 @@ export async function updateProject(projectId, data, userId) {
   if (state !== undefined) projectUpdate.state = state;
   if (metadata !== undefined) projectUpdate.metadata = metadata;
   if (readOnly !== undefined) projectUpdate.readOnly = readOnly;
+  if (data.public !== undefined) projectUpdate.public = data.public;
 
   // Claim anonymous project
   if (!project.userId && userId) {
@@ -235,7 +236,7 @@ export async function updateProject(projectId, data, userId) {
  * @returns {{ project: object }|{ error: string, status: number }}
  */
 export async function patchProject(projectId, data, userId) {
-  const project = await Project.findOne({ projectId, deletedAt: null })
+  const project = await Project.findOne({ projectId })
     .populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title spotifyTrackId artist');
   if (!project) return { error: 'Project not found', status: 404 };
 
@@ -249,7 +250,7 @@ export async function patchProject(projectId, data, userId) {
   }
 
   const projectUpdate = {};
-  const allowed = ['title', 'uploadId', 'state', 'metadata', 'readOnly'];
+  const allowed = ['title', 'uploadId', 'state', 'metadata', 'readOnly', 'public'];
   for (const key of allowed) {
     if (data[key] !== undefined) {
       projectUpdate[key] = data[key];
@@ -360,17 +361,18 @@ async function patchLyrics(projectId, lyricsData) {
  * @returns {{ error?: string, status?: number }}
  */
 export async function deleteProject(projectId, userId) {
-  const project = await Project.findOne({ projectId, deletedAt: null });
+  const project = await Project.findOne({ projectId });
   if (!project) return { error: 'Project not found', status: 404 };
 
   if (!project.isOwnedBy(userId)) {
     return { error: 'Not authorized to delete this project', status: 403 };
   }
 
-  // Soft delete project and its lyrics
-  project.deletedAt = new Date();
-  await project.save();
-  await Lyrics.deleteOne({ projectId });
+  // Hard delete project and its lyrics
+  await Promise.all([
+    Project.deleteOne({ projectId }),
+    Lyrics.deleteOne({ projectId })
+  ]);
 
   return {};
 }
@@ -382,10 +384,10 @@ export async function deleteProject(projectId, userId) {
  * @returns {object|null} Sanitized public project object
  */
 export async function getShareProject(projectId) {
-  const project = await Project.findOne({ projectId, deletedAt: null })
+  const project = await Project.findOne({ projectId })
     .populate('uploadId', 'source fileName youtubeUrl cloudinaryUrl duration title');
   
-  if (!project) return null;
+  if (!project || project.public === false) return null;
 
   const lyrics = await Lyrics.findOne({ projectId });
 
@@ -431,7 +433,7 @@ export async function getShareProject(projectId) {
  * @returns {object} New project data or error
  */
 export async function cloneProject(sourceProjectId, newUserId) {
-  const sourceProject = await Project.findOne({ projectId: sourceProjectId, deletedAt: null });
+  const sourceProject = await Project.findOne({ projectId: sourceProjectId });
   if (!sourceProject) return { error: 'Source project not found', status: 404 };
 
   const lyrics = await Lyrics.findOne({ projectId: sourceProjectId });

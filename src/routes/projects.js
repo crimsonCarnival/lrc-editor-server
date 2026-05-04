@@ -25,6 +25,7 @@ const projectBodySchema = {
     state: stateSchema,
     metadata: metadataSchemaValidation,
     readOnly: { type: 'boolean' },
+    public: { type: 'boolean' },
   },
   additionalProperties: false,
 };
@@ -48,6 +49,7 @@ const patchProjectSchema = {
       state: stateSchema,
       metadata: metadataSchemaValidation,
       readOnly: { type: 'boolean' },
+      public: { type: 'boolean' },
       version: { type: 'integer', minimum: 0 },
     },
     additionalProperties: false,

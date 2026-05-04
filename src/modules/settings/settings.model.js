@@ -98,7 +98,7 @@ const exportSchema = sub({
 // ── Interface ──
 
 const interfaceSchema = sub({
-  theme: { type: String, enum: ['system', 'dark', 'light'] },
+  theme: { type: String, enum: ['system', 'dark', 'light', 'dracula', 'alucard', 'alucardlight'] },
   defaultLanguage: { type: String, maxlength: 10, match: /^[a-zA-Z]{2,3}(-[a-zA-Z]{2,4})?$/ },
   fontSize: { type: String, enum: ['small', 'normal', 'large', 'xlarge'] },
   spacing: { type: String, enum: ['compact', 'normal', 'relaxed'] },

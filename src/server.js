@@ -14,6 +14,7 @@ import uploadRoutes from './modules/uploads/uploads.routes.js';
 import settingsRoutes from './modules/settings/settings.routes.js';
 import spotifyRoutes from './modules/spotify/spotify.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
+import youtubeRoutes from './modules/youtube/youtube.routes.js';
 
 const envToLogger = {
   development: {
@@ -64,6 +65,7 @@ async function build() {
   await app.register(spotifyRoutes, { prefix: '/spotify' });
   await app.register(settingsRoutes, { prefix: '/settings' });
   await app.register(adminRoutes, { prefix: '/admin' });
+  await app.register(youtubeRoutes, { prefix: '/youtube' });
 
   // Lyrics module handles both /lyrics and /editor prefixes
   // (same domain, backward-compatible URL preservation)

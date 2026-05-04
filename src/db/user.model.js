@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema(
       trim: true,
       minlength: 3,
       maxlength: 30,
-      match: /^[a-z0-9_-]+$/,
+      match: /^[a-zA-Z0-9_.-]+$/,
     },
     email: {
       type: String,
@@ -150,7 +150,7 @@ userSchema.methods.toPublic = function () {
  */
 userSchema.methods.checkBanStatus = async function () {
   if (!this.isBanned) return false;
-  
+
   if (this.bannedUntil && this.bannedUntil <= new Date()) {
     this.isBanned = false;
     this.bannedAt = null;
@@ -163,7 +163,7 @@ userSchema.methods.checkBanStatus = async function () {
     await this.save();
     return true;
   }
-  
+
   return false;
 };
 

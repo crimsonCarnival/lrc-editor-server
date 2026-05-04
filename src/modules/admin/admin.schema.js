@@ -69,7 +69,7 @@ export const listUsersSchema = {
       page: { type: 'integer', minimum: 1, default: 1 },
       limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
       search: { type: 'string', maxLength: 200 },
-      status: { type: 'string', enum: ['all', 'active', 'banned', 'pending'] },
+      status: { type: 'string', enum: ['', 'all', 'active', 'banned', 'pending', 'deleted', 'verified', 'premium'] },
     },
   },
 };

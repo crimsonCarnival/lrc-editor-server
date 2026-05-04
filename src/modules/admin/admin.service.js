@@ -22,6 +22,7 @@ export async function listUsers(query = {}) {
     if (status === 'active') filter.isBanned = false;
     if (status === 'deleted') filter.isDeleted = true;
     if (status === 'verified') filter.isVerified = true;
+    if (status === 'pending') filter.appealStatus = 'pending';
     if (status === 'premium') {
       filter['spotify.isPremium'] = true;
     }

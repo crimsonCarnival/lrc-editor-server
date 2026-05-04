@@ -1,4 +1,6 @@
 import * as spotifyService from './spotify.service.js';
+import * as spotifySearch from './spotify.search.js';
+import * as spotifyPlayback from './spotify.playback.js';
 import * as uploadService from '../uploads/uploads.service.js';
 
 function callbackHtml(success, error) {
@@ -109,7 +111,7 @@ export async function createUpload(req, res) {
  */
 export async function searchTracks(req, res) {
   const { q, limit, offset } = req.query;
-  const result = await spotifyService.search(req.userId, q, limit, offset);
+  const result = await spotifySearch.search(req.userId, q, limit, offset);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -119,7 +121,7 @@ export async function searchTracks(req, res) {
  */
 export async function savedTracks(req, res) {
   const { limit, offset } = req.query;
-  const result = await spotifyService.getSavedTracks(req.userId, limit, offset);
+  const result = await spotifySearch.getSavedTracks(req.userId, limit, offset);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -129,7 +131,7 @@ export async function savedTracks(req, res) {
  */
 export async function recentlyPlayed(req, res) {
   const { limit } = req.query;
-  const result = await spotifyService.getRecentlyPlayed(req.userId, limit);
+  const result = await spotifySearch.getRecentlyPlayed(req.userId, limit);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -139,7 +141,7 @@ export async function recentlyPlayed(req, res) {
  */
 export async function topTracks(req, res) {
   const { time_range, limit, offset } = req.query;
-  const result = await spotifyService.getTopTracks(req.userId, time_range, limit, offset);
+  const result = await spotifySearch.getTopTracks(req.userId, time_range, limit, offset);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -149,7 +151,7 @@ export async function topTracks(req, res) {
  */
 export async function playlists(req, res) {
   const { limit, offset } = req.query;
-  const result = await spotifyService.getMyPlaylists(req.userId, limit, offset);
+  const result = await spotifySearch.getMyPlaylists(req.userId, limit, offset);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -160,7 +162,7 @@ export async function playlists(req, res) {
 export async function playlistTracks(req, res) {
   const { playlistId } = req.params;
   const { limit, offset } = req.query;
-  const result = await spotifyService.getPlaylistTracks(req.userId, playlistId, limit, offset);
+  const result = await spotifySearch.getPlaylistTracks(req.userId, playlistId, limit, offset);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -170,7 +172,7 @@ export async function playlistTracks(req, res) {
  */
 export async function createPlaylist(req, res) {
   const { name, description, public: isPublic } = req.body;
-  const result = await spotifyService.createPlaylist(req.userId, name, description, isPublic);
+  const result = await spotifySearch.createPlaylist(req.userId, name, description, isPublic);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -181,7 +183,7 @@ export async function createPlaylist(req, res) {
 export async function addToPlaylist(req, res) {
   const { playlistId } = req.params;
   const { uris } = req.body;
-  const result = await spotifyService.addToPlaylist(req.userId, playlistId, uris);
+  const result = await spotifySearch.addToPlaylist(req.userId, playlistId, uris);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -191,7 +193,7 @@ export async function addToPlaylist(req, res) {
  */
 export async function saveToLibrary(req, res) {
   const { uris } = req.body;
-  const result = await spotifyService.saveToLibrary(req.userId, uris);
+  const result = await spotifySearch.saveToLibrary(req.userId, uris);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -201,7 +203,7 @@ export async function saveToLibrary(req, res) {
  */
 export async function removeFromLibrary(req, res) {
   const { uris } = req.body;
-  const result = await spotifyService.removeFromLibrary(req.userId, uris);
+  const result = await spotifySearch.removeFromLibrary(req.userId, uris);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -212,7 +214,7 @@ export async function removeFromLibrary(req, res) {
 export async function checkLibrary(req, res) {
   const { uris } = req.query;
   const uriList = uris ? uris.split(',') : [];
-  const result = await spotifyService.checkLibrary(req.userId, uriList);
+  const result = await spotifySearch.checkLibrary(req.userId, uriList);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -221,7 +223,7 @@ export async function checkLibrary(req, res) {
  * GET /spotify/devices — get available playback devices.
  */
 export async function devices(req, res) {
-  const result = await spotifyService.getDevices(req.userId);
+  const result = await spotifyPlayback.getDevices(req.userId);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -231,7 +233,7 @@ export async function devices(req, res) {
  */
 export async function transferPlayback(req, res) {
   const { deviceId, play } = req.body;
-  const result = await spotifyService.transferPlayback(req.userId, deviceId, play);
+  const result = await spotifyPlayback.transferPlayback(req.userId, deviceId, play);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -240,7 +242,7 @@ export async function transferPlayback(req, res) {
  * GET /spotify/player — get current playback state.
  */
 export async function playbackState(req, res) {
-  const result = await spotifyService.getPlaybackState(req.userId);
+  const result = await spotifyPlayback.getPlaybackState(req.userId);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -249,7 +251,7 @@ export async function playbackState(req, res) {
  * GET /spotify/player/currently-playing — get currently playing track.
  */
 export async function currentlyPlaying(req, res) {
-  const result = await spotifyService.getCurrentlyPlaying(req.userId);
+  const result = await spotifyPlayback.getCurrentlyPlaying(req.userId);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -259,7 +261,7 @@ export async function currentlyPlaying(req, res) {
  */
 export async function addToQueue(req, res) {
   const { uri, deviceId } = req.body;
-  const result = await spotifyService.addToQueue(req.userId, uri, deviceId);
+  const result = await spotifyPlayback.addToQueue(req.userId, uri, deviceId);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }
@@ -268,7 +270,7 @@ export async function addToQueue(req, res) {
  * GET /spotify/player/queue — get current queue.
  */
 export async function getQueue(req, res) {
-  const result = await spotifyService.getQueue(req.userId);
+  const result = await spotifyPlayback.getQueue(req.userId);
   if (result.error) return res.code(result.status).send({ error: result.error });
   return res.send(result);
 }

@@ -14,19 +14,18 @@ import editorRoutes from './routes/editor.js';
 import settingsRoutes from './routes/settings.js';
 
 import adminRoutes from './routes/admin.js';
-import requestLogger from './plugins/requestLogger.js';
 
 const envToLogger = {
-  development: { 
-    level: 'info', 
-    transport: { 
-      target: 'pino-pretty', 
-      options: { 
-        translateTime: 'HH:MM:ss Z', 
+  development: {
+    level: 'info',
+    transport: {
+      target: 'pino-pretty',
+      options: {
+        translateTime: 'HH:MM:ss Z',
         ignore: 'pid,hostname',
         singleLine: false
-      } 
-    } 
+      }
+    }
   },
   production: { level: 'warn' },
 };
@@ -44,7 +43,6 @@ async function build() {
   await app.register(rateLimit);
   await app.register(mongoose);
   await app.register(auth);
-  await app.register(requestLogger);
 
   // --- Request Body Logging (Development) ---
   if (process.env.NODE_ENV === 'development') {
@@ -74,8 +72,7 @@ async function build() {
 
   return app;
 }
-
-const start = async () => {
+(async () => {
   const app = await build();
   try {
     const port = parseInt(process.env.PORT, 10) || 3000;
@@ -85,6 +82,4 @@ const start = async () => {
     app.log.error(err);
     process.exit(1);
   }
-};
-
-start();
+})();

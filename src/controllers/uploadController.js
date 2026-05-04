@@ -4,7 +4,7 @@ import * as uploadService from '../services/uploadService.js';
  * POST /uploads/signature — generate signed Cloudinary upload params.
  */
 export async function audioSignature(req, res) {
-  const result = uploadService.generateAudioSignature(req.body);
+  const result = uploadService.generateAudioSignature(req.body, req.userId);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }
@@ -14,8 +14,8 @@ export async function audioSignature(req, res) {
 /**
  * POST /uploads/avatar-signature — generate signed avatar upload params.
  */
-export async function avatarSignature(_, res) {
-  const result = uploadService.generateAvatarSignature();
+export async function avatarSignature(req, res) {
+  const result = uploadService.generateAvatarSignature(req.userId);
   if (result.error) {
     return res.code(result.status).send({ error: result.error });
   }

@@ -1,6 +1,10 @@
 /**
  * YouTube utilities for fetching video information.
  */
+import { LRUCache } from '@crimson-carnival/ds-js';
+
+// Cache for YouTube metadata resolution (Capacity: 100 items)
+const ytCache = new LRUCache(100);
 
 /**
  * Extract YouTube video ID from various URL formats.
@@ -12,8 +16,7 @@ export function extractYouTubeVideoId(url) {
 
   // Handle different YouTube URL formats
   const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+    /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|watch\?.+&v=)|youtu\.be\/)([^&?/\s]{11})/,
   ];
 
   for (const pattern of patterns) {
@@ -48,6 +51,10 @@ export async function fetchYouTubeTitle(url) {
     return null;
   }
 
+  // Check cache first
+  const cached = ytCache.get(videoId);
+  if (cached && cached.title) return cached.title;
+
   try {
     const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(apiUrl);
@@ -60,7 +67,10 @@ export async function fetchYouTubeTitle(url) {
     const data = await response.json();
     
     if (data.items && data.items.length > 0) {
-      return data.items[0].snippet.title;
+      const title = data.items[0].snippet.title;
+      // Pre-warm cache for the title
+      ytCache.put(videoId, { title, duration: null });
+      return title;
     }
 
     console.warn('No video found for ID:', videoId);
@@ -83,6 +93,10 @@ export async function fetchYouTubeMetadata(url) {
   const videoId = extractYouTubeVideoId(url);
   if (!videoId) return null;
 
+  // Check cache first
+  const cached = ytCache.get(videoId);
+  if (cached && cached.duration !== null) return cached;
+
   try {
     const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(apiUrl);
@@ -94,7 +108,10 @@ export async function fetchYouTubeMetadata(url) {
     const item = data.items[0];
     const title = item.snippet.title;
     const duration = parseISO8601Duration(item.contentDetails.duration);
-    return { title, duration };
+    
+    const result = { title, duration };
+    ytCache.put(videoId, result);
+    return result;
   } catch {
     return null;
   }

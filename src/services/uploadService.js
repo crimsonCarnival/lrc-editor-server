@@ -5,7 +5,7 @@ import Project from '../models/Project.js';
 import { fetchYouTubeTitle, fetchYouTubeMetadata } from '../utils/youtube.js';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
-const ALLOWED_AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'webm'];
+const ALLOWED_AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'webm', 'mp4'];
 const UPLOAD_FOLDER = 'lyrics-syncer/audio';
 
 /**
@@ -22,9 +22,10 @@ export function isCloudinaryConfigured() {
 /**
  * Generate a signed upload signature for audio files.
  * @param {{ fileName: string, fileSize: number }} data
+ * @param {string} userId - Authenticated user ID
  * @returns {{ signature, timestamp, cloudName, apiKey, folder, resourceType }|{ error: string, status: number }}
  */
-export function generateAudioSignature(data) {
+export function generateAudioSignature(data, userId) {
   if (!isCloudinaryConfigured()) {
     return { error: 'Upload service not configured', status: 503 };
   }
@@ -46,7 +47,8 @@ export function generateAudioSignature(data) {
 
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
   const timestamp = Math.round(Date.now() / 1000);
-  const params = { timestamp, folder: UPLOAD_FOLDER };
+  const userFolder = `${UPLOAD_FOLDER}/${userId}`;
+  const params = { timestamp, folder: userFolder };
   const signature = cloudinary.utils.api_sign_request(params, apiSecret);
 
   return {
@@ -54,24 +56,26 @@ export function generateAudioSignature(data) {
     timestamp,
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     apiKey: process.env.CLOUDINARY_API_KEY,
-    folder: UPLOAD_FOLDER,
+    folder: userFolder,
     resourceType: 'video',
   };
 }
 
 /**
  * Generate signed upload signature for avatar images.
+ * @param {string} userId - Authenticated user ID
  */
-export function generateAvatarSignature() {
+export function generateAvatarSignature(userId) {
   if (!isCloudinaryConfigured()) {
     return { error: 'Upload service not configured', status: 503 };
   }
 
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
   const timestamp = Math.round(Date.now() / 1000);
+  const userFolder = `lyrics-syncer/avatars/${userId}`;
   const params = {
     timestamp,
-    folder: 'lyrics-syncer/avatars',
+    folder: userFolder,
   };
   const signature = cloudinary.utils.api_sign_request(params, apiSecret);
 
@@ -80,7 +84,7 @@ export function generateAvatarSignature() {
     timestamp,
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     apiKey: process.env.CLOUDINARY_API_KEY,
-    folder: 'lyrics-syncer/avatars',
+    folder: userFolder,
     resourceType: 'image',
   };
 }
@@ -138,9 +142,46 @@ export async function createMedia(userId, data) {
   const { source, cloudinaryUrl, publicId, youtubeUrl, spotifyTrackId, artist, fileName, title, duration } = data;
 
   const query = { userId, source };
-  if (source === 'cloudinary' && cloudinaryUrl) query.cloudinaryUrl = cloudinaryUrl;
-  else if (source === 'youtube' && youtubeUrl) query.youtubeUrl = youtubeUrl;
-  else if (source === 'spotify' && spotifyTrackId) query.spotifyTrackId = spotifyTrackId;
+  
+  // Strict URL Validation
+  if (source === 'youtube' && youtubeUrl) {
+    const ytPattern = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|watch\?.+&v=)|youtu\.be\/)([^&?/\s]{11})/;
+    const isId = /^[a-zA-Z0-9_-]{11}$/.test(youtubeUrl);
+    if (!ytPattern.test(youtubeUrl) && !isId) {
+      throw new Error('Invalid YouTube URL');
+    }
+    query.youtubeUrl = youtubeUrl;
+  } else if (source === 'cloudinary' && cloudinaryUrl) {
+    // Validate the CDN URL comes from res.cloudinary.com
+    if (!cloudinaryUrl.startsWith('https://res.cloudinary.com/')) {
+      throw new Error('Cloudinary URL must come from res.cloudinary.com');
+    }
+    // Validate it belongs to OUR Cloudinary account (prevents linking foreign accounts)
+    const ourCloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    if (ourCloudName && !cloudinaryUrl.includes(`/${ourCloudName}/`)) {
+      throw new Error('CDN URL does not belong to this application\'s Cloudinary account');
+    }
+    // NOTE: Cloudinary strips the file extension from public_id, so audio files
+    // uploaded as 'video' resource type may have .mp4 extension in the URL.
+    // We validate the extension from fileName only when it's clearly an audio/media file.
+    if (fileName) {
+      const fileExt = fileName.split('.').pop()?.toLowerCase();
+      // Only reject if the extension is something clearly non-audio (e.g. .exe, .js)
+      // Empty or missing extension is allowed (Cloudinary strips them from publicId-based names)
+      if (fileExt && fileExt.length <= 5 && !ALLOWED_AUDIO_EXTENSIONS.includes(fileExt)) {
+        throw new Error('Invalid audio file type');
+      }
+    }
+    // Only validate publicId ownership when a publicId is actually provided
+    if (publicId) {
+      if (!publicId.startsWith(`${UPLOAD_FOLDER}/${userId}/`) && !publicId.startsWith(UPLOAD_FOLDER + '/')) {
+        throw new Error('Invalid Cloudinary public ID');
+      }
+    }
+    query.cloudinaryUrl = cloudinaryUrl;
+  } else if (source === 'spotify' && spotifyTrackId) {
+    query.spotifyTrackId = spotifyTrackId;
+  }
 
   // Fetch YouTube title and duration if not provided
   let finalTitle = title || fileName || '';
@@ -162,7 +203,6 @@ export async function createMedia(userId, data) {
       publicId: publicId || null,
       youtubeUrl: youtubeUrl || null,
       spotifyTrackId: spotifyTrackId || null,
-      artist: artist || null,
       artist: artist || null,
       fileName: fileName || '',
       title: finalTitle,
@@ -251,7 +291,7 @@ export async function getMedia(uploadId, userId) {
   if (!upload) return { error: 'Upload not found', status: 404 };
   if (upload.userId.toString() !== userId) return { error: 'Not authorized', status: 403 };
 
-  const projects = await Project.find({ uploadId, deletedAt: null }).select('projectId title updatedAt').lean();
+  const projects = await Project.find({ uploadId }).select('projectId title updatedAt').lean();
 
   return {
     ...upload.toPublic(),

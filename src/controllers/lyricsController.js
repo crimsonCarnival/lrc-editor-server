@@ -10,6 +10,21 @@ import {
  */
 export async function parse(req, res) {
   const { content, filename } = req.body;
+  
+  if (!content || typeof content !== 'string') {
+    return res.code(400).send({ error: 'Lyrics content is required' });
+  }
+
+  // Max 5MB check (matching frontend)
+  if (content.length > 5 * 1024 * 1024) {
+    return res.code(413).send({ error: 'Lyrics content too large (max 5MB)' });
+  }
+
+  const normalizedName = (filename || 'lyrics.lrc').toLowerCase();
+  if (!normalizedName.endsWith('.lrc') && !normalizedName.endsWith('.srt') && !normalizedName.endsWith('.txt')) {
+    return res.code(400).send({ error: 'Unsupported lyrics format' });
+  }
+
   const lines = parseLrcSrtFile(content, filename);
 
   return res.send({

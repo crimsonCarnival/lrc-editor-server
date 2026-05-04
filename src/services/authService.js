@@ -29,14 +29,14 @@ async function checkDevice(deviceId, user = null) {
  * @returns {{ user, accessToken, refreshToken }|{ error: string, status: number }}
  */
 export async function register(data, jwt, ip, deviceId) {
-  // Check if IP is banned
-  const ipBanned = await BannedIp.findOne({ ip });
+  // Parallelize IP and device ban checks
+  const [ipBanned, deviceCheck] = await Promise.all([
+    ip ? BannedIp.findOne({ ip }) : Promise.resolve(null),
+    checkDevice(deviceId),
+  ]);
   if (ipBanned) {
     return { error: 'Registration restricted from this network.', status: 403 };
   }
-
-  // Check if device is banned
-  const deviceCheck = await checkDevice(deviceId);
   if (deviceCheck.error) return deviceCheck;
 
   const { username, email, password } = data;
@@ -86,14 +86,14 @@ export async function register(data, jwt, ip, deviceId) {
  * @returns {{ user, accessToken, refreshToken }|{ error: string, status: number }}
  */
 export async function login(data, jwt, ip, deviceId) {
-  // Check if IP is banned
-  const ipBanned = await BannedIp.findOne({ ip });
+  // Parallelize IP and device ban checks
+  const [ipBanned, deviceCheck] = await Promise.all([
+    ip ? BannedIp.findOne({ ip }) : Promise.resolve(null),
+    checkDevice(deviceId),
+  ]);
   if (ipBanned) {
     return { error: 'Access restricted from this network.', status: 403 };
   }
-
-  // Check if device is banned
-  const deviceCheck = await checkDevice(deviceId);
   if (deviceCheck.error) return deviceCheck;
 
   const { identifier, password } = data;
@@ -112,9 +112,12 @@ export async function login(data, jwt, ip, deviceId) {
     return { error: 'Account has been deleted', status: 403 };
   }
 
-  user.lastIp = ip;
-  await checkDevice(deviceId, user); // Link device to user
-  await user.save();
+  // checkDevice saves user internally when a new device is added.
+  // We only need an extra save if the IP itself changed.
+  const ipChanged = ip && user.lastIp !== ip;
+  if (ipChanged) user.lastIp = ip;
+  await checkDevice(deviceId, user); // Link device; saves if new device found
+  if (ipChanged && !user.isModified()) await user.save(); // Extra save only when IP changed but no device was added
 
   const tokenPayload = { sub: user._id.toString() };
   return {
@@ -201,6 +204,17 @@ export async function updateProfile(userId, data, logger) {
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
+  if (avatarUrl !== undefined && avatarUrl !== null) {
+    const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const urlLower = avatarUrl.toLowerCase();
+    const isImage = ALLOWED_IMAGE_EXTENSIONS.some(ext => urlLower.endsWith(`.${ext}`) || urlLower.includes(`.${ext}?`)) || 
+                    (avatarUrl.includes('cloudinary.com') && avatarUrl.includes('/image/upload/'));
+    
+    if (!isImage) {
+      return { error: 'Invalid image URL format. Only JPG, PNG, GIF, and WEBP are allowed.', status: 400 };
+    }
+  }
+
   if (avatarUrl !== undefined && user.avatarPublicId && cloudName && apiKey && apiSecret) {
     try {
       cloudinary.config({
@@ -216,7 +230,12 @@ export async function updateProfile(userId, data, logger) {
   }
 
   if (avatarUrl !== undefined) user.avatarUrl = avatarUrl;
-  if (avatarPublicId !== undefined) user.avatarPublicId = avatarPublicId;
+  if (avatarPublicId !== undefined) {
+    if (avatarPublicId && !avatarPublicId.startsWith('lyrics-syncer/avatars/')) {
+      return { error: 'Invalid Cloudinary public ID for avatar', status: 400 };
+    }
+    user.avatarPublicId = avatarPublicId;
+  }
 
   await user.save();
   return { user: user.toPublic() };

@@ -7,7 +7,7 @@ import AdminLog from './adminLog.model.js';
 
 export async function listUsers(query = {}) {
   const { page = 1, limit = 50, search = '', role = '', status = '' } = query;
-  
+
   const filter = {};
   if (search) {
     filter.$or = [
@@ -27,16 +27,16 @@ export async function listUsers(query = {}) {
       filter['spotify.isPremium'] = true;
     }
   }
-  
+
   const total = await User.countDocuments(filter);
   // Exclude password hash and large rarely-needed fields from the wire payload
   const usersRaw = await User.find(filter)
-    .select('-passwordHash -refreshTokens')
+    .select('-passwordHash -spotify.accessToken -spotify.refreshToken -deviceIds')
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(Number(limit))
     .lean();
-    
+
   if (usersRaw.length === 0) {
     return { users: [], total, page: Number(page), limit: Number(limit) };
   }
@@ -56,13 +56,13 @@ export async function listUsers(query = {}) {
   ]);
 
   const projectCountMap = new Map(projectCounts.map(r => [r._id.toString(), r.count]));
-  const uploadCountMap  = new Map(uploadCounts.map(r => [r._id.toString(), r.count]));
+  const uploadCountMap = new Map(uploadCounts.map(r => [r._id.toString(), r.count]));
 
   const users = usersRaw.map(u => ({
     ...u,
     id: u._id.toString(),
     projectCount: projectCountMap.get(u._id.toString()) ?? 0,
-    uploadCount:  uploadCountMap.get(u._id.toString()) ?? 0,
+    uploadCount: uploadCountMap.get(u._id.toString()) ?? 0,
   }));
 
   return { users, total, page: Number(page), limit: Number(limit) };
@@ -84,7 +84,7 @@ export async function getStats() {
     Project.countDocuments({}),
     Upload.countDocuments()
   ]);
-  
+
   // "Active" defined as users who logged in/refreshed in the last 24 hours
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const activeUsers = await User.countDocuments({ updatedAt: { $gte: yesterday } });
@@ -104,7 +104,7 @@ export async function toggleBan(userId, banStatus, reason = null, bannedUntil = 
   const user = await User.findById(userId);
   if (!user) return { error: 'User not found', status: 404 };
   if (user.role === 'admin') return { error: 'Cannot ban an admin', status: 403 };
-  
+
   user.isBanned = banStatus;
   if (banStatus) {
     user.bannedAt = new Date();
@@ -113,12 +113,12 @@ export async function toggleBan(userId, banStatus, reason = null, bannedUntil = 
 
     if (banIp && user.lastIp) {
       const isLoopback = user.lastIp === '127.0.0.1' || user.lastIp === '::1' || user.lastIp === '::ffff:127.0.0.1';
-      
+
       if (!isLoopback) {
         await BannedIp.findOneAndUpdate(
           { ip: user.lastIp },
-          { 
-            ip: user.lastIp, 
+          {
+            ip: user.lastIp,
             reason: `Associated with banned user: ${user.username}`,
             userId: user._id,
             bannedBy: adminId
@@ -152,7 +152,7 @@ export async function toggleBan(userId, banStatus, reason = null, bannedUntil = 
     user.appealResolvedAt = new Date();
     user.showUnbanMessage = true;
   }
-  
+
   await user.save();
 
   if (adminId) {
@@ -180,7 +180,7 @@ export async function rejectAppeal(userId, adminId = null) {
   user.appealStatus = 'rejected';
   user.appealAt = null;
   user.appealResolvedAt = new Date();
-  
+
   await user.save();
 
   if (adminId) {
@@ -202,7 +202,7 @@ export async function changeUserRole(userId, newRole, adminId = null) {
   const user = await User.findById(userId);
   if (!user) return { error: 'User not found', status: 404 };
   if (!['user', 'admin'].includes(newRole)) return { error: 'Invalid role', status: 400 };
-  
+
   user.role = newRole;
   await user.save();
 
@@ -225,7 +225,7 @@ export async function deleteUser(userId, adminId = null) {
   const user = await User.findById(userId);
   if (!user) return { error: 'User not found', status: 404 };
   if (user.role === 'admin') return { error: 'Cannot delete an admin', status: 403 };
-  
+
   // Soft delete and logically disable
   user.deletedAt = new Date();
   user.isDeleted = true;
@@ -234,7 +234,7 @@ export async function deleteUser(userId, adminId = null) {
   user.banAppeal = null;
   user.appealAt = null;
   user.appealStatus = 'none';
-  
+
   await user.save();
 
   if (adminId) {
@@ -258,10 +258,10 @@ export async function deleteUser(userId, adminId = null) {
 export async function reactivateUser(userId, adminId = null) {
   const user = await User.findById(userId);
   if (!user) return { error: 'User not found', status: 404 };
-  
+
   user.isDeleted = false;
   user.deletedAt = null;
-  
+
   await user.save();
 
   if (adminId) {

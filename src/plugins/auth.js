@@ -2,19 +2,41 @@ import fp from 'fastify-plugin';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me';
+
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'change-me')) {
+  throw new Error('FATAL: JWT_SECRET must be set to a strong value in production.');
+}
 const ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '15m';
 const REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '30d';
+const JWT_ISSUER = process.env.JWT_ISSUER;
+const JWT_AUDIENCE = process.env.JWT_AUDIENCE;
 
 function signAccess(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_EXPIRY });
+  return jwt.sign(payload, JWT_SECRET, { 
+    expiresIn: ACCESS_EXPIRY,
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
+    algorithm: 'HS256'
+  });
 }
 
 function signRefresh(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: REFRESH_EXPIRY });
+  return jwt.sign(payload, JWT_SECRET, { 
+    expiresIn: REFRESH_EXPIRY,
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
+    algorithm: 'HS256'
+  });
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, JWT_SECRET, { 
+    algorithms: ['HS256'], 
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
+    allowInvalidAsymmetricKeyTypes: false,
+    clockTolerance: 30
+  });
 }
 
 async function authPlugin(fastify) {
@@ -77,7 +99,7 @@ async function authPlugin(fastify) {
     try {
       const decoded = verifyToken(header.slice(7));
       request.userId = decoded.sub;
-      
+
       const User = (await import('../db/user.model.js')).default;
       const user = await User.findById(decoded.sub);
       if (!user || user.deletedAt) return reply.code(401).send({ error: 'User not found' });

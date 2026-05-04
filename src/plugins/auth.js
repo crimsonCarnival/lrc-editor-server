@@ -58,7 +58,7 @@ async function authPlugin(fastify) {
     try {
       const decoded = verifyToken(header.slice(7));
       request.userId = decoded.sub;
-      const User = (await import('../models/User.js')).default;
+      const User = (await import('../db/user.model.js')).default;
       const user = await User.findById(decoded.sub);
       if (!user || user.deletedAt) return reply.code(401).send({ error: 'User not found' });
       await user.checkBanStatus();
@@ -78,7 +78,7 @@ async function authPlugin(fastify) {
       const decoded = verifyToken(header.slice(7));
       request.userId = decoded.sub;
       
-      const User = (await import('../models/User.js')).default;
+      const User = (await import('../db/user.model.js')).default;
       const user = await User.findById(decoded.sub);
       if (!user || user.deletedAt) return reply.code(401).send({ error: 'User not found' });
       await user.checkBanStatus();

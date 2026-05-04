@@ -70,7 +70,11 @@ export async function register(data, jwt, ip, deviceId) {
     deviceIds: deviceId ? [deviceId] : [],
   });
 
-  const tokenPayload = { sub: user._id.toString() };
+  const tokenPayload = { 
+    sub: user._id.toString(),
+    username: user.username,
+    role: user.role
+  };
   return {
     user: user.toPublic(),
     accessToken: jwt.signAccess(tokenPayload),
@@ -119,7 +123,11 @@ export async function login(data, jwt, ip, deviceId) {
   await checkDevice(deviceId, user); // Link device; saves if new device found
   if (ipChanged && !user.isModified()) await user.save(); // Extra save only when IP changed but no device was added
 
-  const tokenPayload = { sub: user._id.toString() };
+  const tokenPayload = { 
+    sub: user._id.toString(),
+    username: user.username,
+    role: user.role
+  };
   return {
     user: user.toPublic(),
     accessToken: jwt.signAccess(tokenPayload),
@@ -156,7 +164,11 @@ export async function refresh(refreshToken, jwt, ip, deviceId) {
     await user.save();
   }
 
-  const tokenPayload = { sub: user._id.toString() };
+  const tokenPayload = { 
+    sub: user._id.toString(),
+    username: user.username,
+    role: user.role
+  };
   return {
     accessToken: jwt.signAccess(tokenPayload),
     refreshToken: jwt.signRefresh(tokenPayload),

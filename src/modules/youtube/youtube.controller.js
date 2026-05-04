@@ -26,20 +26,27 @@ export async function searchYoutube(request, reply) {
       return reply.code(502).send({ error: 'YouTube API request failed' });
     }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+    if (!data.items) {
+      request.log.warn({ data }, 'YouTube API returned unexpected format');
+    }
 
-    const items = (data.items || []).map((item) => ({
-      videoId: item.id.videoId,
-      title: item.snippet.title,
-      description: item.snippet.description,
-      thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
-      channelTitle: item.snippet.channelTitle,
-      publishedAt: item.snippet.publishedAt,
-    }));
+    const items = (data.items || [])
+      .filter((item) => item.id?.videoId) // Ensure we only process items with a videoId
+      .map((item) => ({
+        videoId: item.id.videoId,
+        title: item.snippet?.title || 'Unknown Title',
+        description: item.snippet?.description || '',
+        thumbnail: item.snippet?.thumbnails?.high?.url ||
+          item.snippet?.thumbnails?.medium?.url ||
+          item.snippet?.thumbnails?.default?.url || '',
+        channelTitle: item.snippet?.channelTitle || 'Unknown Channel',
+        publishedAt: item.snippet?.publishedAt || new Date().toISOString(),
+      }));
 
     return { results: items };
   } catch (error) {
-    request.log.error(error.message);
-    return reply.code(500).send({ error: 'Failed to search YouTube' });
+    request.log.error(error);
+    return reply.code(500).send({ error: 'Failed to search YouTube', details: error.message });
   }
 }

@@ -126,21 +126,26 @@ userSchema.statics.hashPassword = function (plain) {
 
 // Never leak sensitive fields
 userSchema.methods.toPublic = function () {
-  const obj = this.toObject();
-  delete obj.passwordHash;
-  delete obj.__v;
-  obj.id = obj._id.toString();
-  delete obj._id;
-  // Strip Spotify tokens — expose only connection status
-  if (obj.spotify) {
-    obj.spotify = {
-      connected: !!obj.spotify.spotifyId,
-      spotifyId: obj.spotify.spotifyId || null,
-      isPremium: obj.spotify.isPremium || false,
-      profilePictureUrl: obj.spotify.profilePictureUrl || null,
-    };
-  }
-  return obj;
+  return {
+    id: this._id.toString(),
+    username: this.username,
+    email: this.email,
+    avatarUrl: this.avatarUrl,
+    isVerified: this.isVerified,
+    isBanned: this.isBanned,
+    bannedUntil: this.bannedUntil,
+    banReason: this.banReason,
+    appealStatus: this.appealStatus,
+    showUnbanMessage: this.showUnbanMessage,
+    role: this.role,
+    createdAt: this.createdAt,
+    spotify: this.spotify ? {
+      connected: !!this.spotify.spotifyId,
+      spotifyId: this.spotify.spotifyId || null,
+      isPremium: this.spotify.isPremium || false,
+      profilePictureUrl: this.spotify.profilePictureUrl || null,
+    } : null
+  };
 };
 
 /**

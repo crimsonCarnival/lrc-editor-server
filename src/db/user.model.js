@@ -99,6 +99,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    bio: {
+      type: String,
+      default: '',
+      maxlength: 160,
+    },
     deviceIds: {
       type: [String],
       default: [],
@@ -131,6 +136,7 @@ userSchema.methods.toPublic = function () {
     username: this.username,
     email: this.email,
     avatarUrl: this.avatarUrl,
+    bio: this.bio || '',
     isVerified: this.isVerified,
     isBanned: this.isBanned,
     ...(this.isBanned ? {

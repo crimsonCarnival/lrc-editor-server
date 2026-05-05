@@ -199,19 +199,29 @@ export async function getProfile(userId, ip, deviceId) {
   return { user: user.toPublic() };
 }
 
-/**
- * Update user profile (avatar).
- * @param {string} userId
- * @param {{ avatarUrl?: string|null, avatarPublicId?: string|null }} data
- * @param {object} logger - Fastify logger
- * @returns {{ user }|{ error: string, status: number }}
- */
 export async function updateProfile(userId, data, logger) {
-  const { avatarUrl, avatarPublicId } = data;
+  const { avatarUrl, avatarPublicId, username, email, bio } = data;
   const user = await User.findById(userId);
   if (!user) return { error: 'User not found', status: 404 };
 
-  // Delete old avatar from Cloudinary if replacing
+  // Handle unique identity changes
+  if (username && username !== user.username) {
+    const existing = await User.findOne({ username: username.trim() });
+    if (existing) return { error: 'Username already taken', status: 409 };
+    user.username = username.trim();
+  }
+
+  if (email && email.toLowerCase().trim() !== user.email) {
+    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existing) return { error: 'Email already in use', status: 409 };
+    user.email = email.toLowerCase().trim();
+  }
+
+  if (bio !== undefined) {
+    user.bio = bio.trim().slice(0, 160);
+  }
+
+  // Avatar handling logic
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;

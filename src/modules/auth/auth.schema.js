@@ -42,6 +42,9 @@ export const updateProfileSchema = {
     properties: {
       avatarUrl: { type: ['string', 'null'], maxLength: 500 },
       avatarPublicId: { type: ['string', 'null'], maxLength: 500 },
+      username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_.-]+$' },
+      email: { type: 'string', format: 'email', maxLength: 254 },
+      bio: { type: 'string', maxLength: 160 },
     },
     additionalProperties: false,
   },

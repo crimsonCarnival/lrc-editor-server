@@ -61,6 +61,7 @@ const displaySchema = sub({
   translationLayout: { type: String, enum: ['stacked', 'side-by-side'] },
   readingFormat: { type: String, enum: ['hiragana', 'katakana', 'romaji'] },
   karaokeFillTrack: { type: String, enum: ['main', 'secondary', 'both'] },
+  karaokeFillEasing: { type: String, enum: ['linear', 'ease-in-out'], default: 'linear' },
 });
 
 const scrollSchema = sub({
@@ -104,6 +105,11 @@ const interfaceSchema = sub({
   spacing: { type: String, enum: ['compact', 'normal', 'relaxed'] },
   previewAlignment: { type: String, enum: ['left', 'center', 'right'] },
   focusMode: { type: String, enum: ['default', 'sync', 'playback'] },
+  layoutSwap: { type: Boolean, default: false },
+  playerTop: { type: Boolean, default: false },
+  editorWidth: { type: Number, min: 20, max: 90, default: 50 },
+  lockLayout: { type: Boolean, default: false },
+  mobileTab: { type: String, enum: ['editor', 'preview'], default: 'editor' },
 });
 
 // ── Shortcuts ──

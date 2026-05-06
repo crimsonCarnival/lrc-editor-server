@@ -23,7 +23,7 @@ export const compileLrcSchema = {
     properties: {
       lines: linesArray,
       includeTranslations: { type: 'boolean' },
-      precision: { type: 'string', enum: ['hundredths', 'milliseconds'] },
+      precision: { type: 'string', enum: ['hundredths', 'thousandths'] },
       metadata: { type: 'object' },
       lineEndings: { type: 'string', enum: ['lf', 'crlf'] },
       includeSecondary: { type: 'boolean' },

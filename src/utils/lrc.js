@@ -47,6 +47,7 @@ function formatWordTimestamp(seconds, precision = 'hundredths') {
 }
 
 function sanitizeLrcTag(s) {
+  if (typeof s !== 'string') return String(s || '');
   return s.replace(/[[\]]/g, '');
 }
 

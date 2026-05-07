@@ -52,6 +52,7 @@ const projectBodySchema = {
     metadata: metadataSchema,
     readOnly: { type: 'boolean' },
     public: { type: 'boolean' },
+    recaptchaToken: { type: 'string', minLength: 1, maxLength: 8192 },
   },
   additionalProperties: false,
 };

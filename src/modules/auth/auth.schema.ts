@@ -16,6 +16,7 @@ export const registerSchema = {
       username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_-]+$' },
       email: { type: 'string', format: 'email', maxLength: 254 },
       password: { type: 'string', minLength: 8, maxLength: 128 },
+      recaptchaToken: { type: 'string', minLength: 1, maxLength: 8192 },
     },
     required: ['password'],
     anyOf: [{ required: ['username'] }, { required: ['email'] }],
@@ -53,6 +54,7 @@ export const loginSchema = {
     properties: {
       identifier: { type: 'string', minLength: 1, maxLength: 254 },
       password: { type: 'string', minLength: 1, maxLength: 128 },
+      recaptchaToken: { type: 'string', minLength: 1, maxLength: 8192 },
     },
     required: ['identifier', 'password'],
   },

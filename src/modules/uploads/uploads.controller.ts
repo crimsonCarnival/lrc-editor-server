@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import * as uploadService from './uploads.service.js';
 
 export async function audioSignature(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const result = uploadService.generateAudioSignature(req.body as Record<string, unknown>, req.userId!);
+  const result = await uploadService.generateAudioSignature(req.body as Record<string, unknown>, req.userId!, req.ip);
   if ((result as Record<string, unknown>).error) {
     return reply.code((result as Record<string, number>).status).send({ error: (result as Record<string, unknown>).error });
   }
@@ -10,7 +10,7 @@ export async function audioSignature(req: FastifyRequest, reply: FastifyReply): 
 }
 
 export async function avatarSignature(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const result = uploadService.generateAvatarSignature(req.userId!);
+  const result = await uploadService.generateAvatarSignature(req.body as Record<string, unknown> || {}, req.userId!, req.ip);
   if ((result as Record<string, unknown>).error) {
     return reply.code((result as Record<string, number>).status).send({ error: (result as Record<string, unknown>).error });
   }

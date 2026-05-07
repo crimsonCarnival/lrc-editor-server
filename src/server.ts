@@ -6,6 +6,10 @@ import cors from './plugins/cors.js';
 import helmet from './plugins/helmet.js';
 import rateLimit from './plugins/rateLimit.js';
 import auth from './plugins/auth.js';
+import mercurius from 'mercurius';
+import { schema } from './graphql/schema.js';
+import { resolvers } from './graphql/resolvers.js';
+import { loaders } from './graphql/loaders.js';
 
 import authRoutes from './modules/auth/auth.routes.js';
 import projectRoutes from './modules/projects/projects.routes.js';
@@ -42,6 +46,16 @@ async function build() {
   await app.register(rateLimit);
   await app.register(mongoose);
   await app.register(auth);
+
+  await app.register(mercurius, {
+    schema,
+    resolvers,
+    loaders,
+    context: (request: FastifyRequest) => ({
+      userId: request.userId,
+    }),
+    graphiql: process.env.NODE_ENV === 'development',
+  });
 
   app.setErrorHandler((error, request, reply) => {
     const err = error as Error & { validation?: { keyword: string; params?: { missingProperty?: string } }[]; statusCode?: number };

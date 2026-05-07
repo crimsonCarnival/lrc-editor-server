@@ -6,6 +6,7 @@ export const signatureSchema = {
     properties: {
       fileName: { type: 'string', minLength: 1, maxLength: 255 },
       fileSize: { type: 'integer', minimum: 1, maximum: MAX_FILE_SIZE },
+      recaptchaToken: { type: 'string', minLength: 1, maxLength: 8192 },
     },
     required: ['fileName', 'fileSize'],
   },

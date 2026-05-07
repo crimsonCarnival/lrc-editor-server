@@ -2,14 +2,20 @@ import type { ServiceResult, ProjectPublic, ProjectListItem, LyricsData } from '
 import Project from './project.model.js';
 import Lyrics from '../lyrics/lyrics.model.js';
 import Upload from '../uploads/upload.model.js';
+import { verifyRecaptcha } from '../auth/auth.service.js';
 
 const ANON_EXPIRY_DAYS = 7;
 
 export async function createProject(
   data: any,
-  userId: string | null | undefined
-): Promise<{ projectId: string; url: string }> {
-  const { title, uploadId, lyrics, state, metadata, readOnly } = data;
+  userId: string | null | undefined,
+  ip: string
+): Promise<{ projectId: string; url: string } | ServiceResult> {
+  const { title, uploadId, lyrics, state, metadata, readOnly, recaptchaToken } = data;
+
+  if (!(await verifyRecaptcha(recaptchaToken, ip))) {
+    return { error: 'recaptcha_failed', status: 403, code: 'recaptcha_failed' } as ServiceResult;
+  }
 
   const projectData: Record<string, unknown> = {
     userId: userId || null,

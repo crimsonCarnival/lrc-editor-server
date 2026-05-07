@@ -22,6 +22,26 @@ const BAN_ERRORS: Record<string, ServiceResult> = {
   ACCOUNT_DELETED:       err('account_deleted', 403),
 };
 
+export async function verifyRecaptcha(token: string | undefined, ip: string): Promise<boolean> {
+  if (!token) return false;
+  const secret = process.env.RECAPTCHA_SECRET_KEY;
+  if (!secret) {
+    console.warn('RECAPTCHA_SECRET_KEY is not configured.');
+    return false;
+  }
+  try {
+    const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `secret=${secret}&response=${token}&remoteip=${ip}`
+    });
+    const data = await res.json() as { success: boolean; score?: number };
+    return data.success && (data.score === undefined || data.score >= 0.5);
+  } catch (e) {
+    return false;
+  }
+}
+
 function isValidDeviceIdFormat(deviceId: string): boolean {
   if (!deviceId || typeof deviceId !== 'string') return false;
   const len = deviceId.length;
@@ -47,11 +67,15 @@ async function checkDevice(deviceId: string | null | undefined, user: any = null
 }
 
 export async function register(
-  data: { username?: string; email?: string; password: string },
+  data: { username?: string; email?: string; password: string; recaptchaToken?: string },
   jwt: JwtTools,
   ip: string,
   deviceId: string
 ): Promise<ServiceResult<AuthResponse>> {
+  if (!(await verifyRecaptcha(data.recaptchaToken, ip))) {
+    return err('recaptcha_failed', 403) as any;
+  }
+
   const [ipBanned, deviceCheck] = await Promise.all([
     ip ? BannedIp.findOne({ ip }) : Promise.resolve(null),
     checkDevice(deviceId),
@@ -93,11 +117,15 @@ export async function register(
 }
 
 export async function login(
-  data: { identifier: string; password: string },
+  data: { identifier: string; password: string; recaptchaToken?: string },
   jwt: JwtTools,
   ip: string,
   deviceId: string
 ): Promise<ServiceResult<AuthResponse>> {
+  if (!(await verifyRecaptcha(data.recaptchaToken, ip))) {
+    return err('recaptcha_failed', 403) as any;
+  }
+
   const [ipBanned, deviceCheck] = await Promise.all([
     ip ? BannedIp.findOne({ ip }) : Promise.resolve(null),
     checkDevice(deviceId),

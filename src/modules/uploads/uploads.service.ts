@@ -3,6 +3,7 @@ import { stripHtml } from '../../utils/sanitize.js';
 import Upload from './upload.model.js';
 import Project from '../projects/project.model.js';
 import { fetchYouTubeTitle, fetchYouTubeMetadata } from '../../utils/youtube.js';
+import { verifyRecaptcha } from '../auth/auth.service.js';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'webm', 'mp4'];
@@ -16,12 +17,16 @@ export function isCloudinaryConfigured(): boolean {
   );
 }
 
-export function generateAudioSignature(data: Record<string, unknown>, userId: string): Record<string, unknown> {
+export async function generateAudioSignature(data: Record<string, unknown>, userId: string, ip: string): Promise<Record<string, unknown>> {
   if (!isCloudinaryConfigured()) {
     return { error: 'Upload service not configured', status: 503 };
   }
 
-  const { fileName, fileSize } = data as { fileName: string; fileSize: number };
+  const { fileName, fileSize, recaptchaToken } = data as { fileName: string; fileSize: number; recaptchaToken?: string };
+  if (!(await verifyRecaptcha(recaptchaToken, ip))) {
+    return { error: 'recaptcha_failed', status: 403 };
+  }
+
   const sanitizedName = stripHtml(fileName);
   const ext = sanitizedName.split('.').pop()?.toLowerCase();
 
@@ -52,15 +57,28 @@ export function generateAudioSignature(data: Record<string, unknown>, userId: st
   };
 }
 
-export function generateAvatarSignature(userId: string): Record<string, unknown> {
+export async function generateAvatarSignature(data: Record<string, unknown>, userId: string, ip: string): Promise<Record<string, unknown>> {
   if (!isCloudinaryConfigured()) {
     return { error: 'Upload service not configured', status: 503 };
+  }
+
+  const { fileSize, recaptchaToken } = data as { fileSize?: number; recaptchaToken?: string };
+  if (!(await verifyRecaptcha(recaptchaToken, ip))) {
+    return { error: 'recaptcha_failed', status: 403 };
+  }
+
+  if (fileSize && fileSize > 1 * 1024 * 1024) {
+    return { error: 'Avatar file too large. Max: 1 MB', status: 400 };
   }
 
   const apiSecret = process.env.CLOUDINARY_API_SECRET as string;
   const timestamp = Math.round(Date.now() / 1000);
   const userFolder = 'lyrics-syncer/avatars/' + userId;
-  const params = { timestamp, folder: userFolder };
+  const params = { 
+    timestamp, 
+    folder: userFolder,
+    transformation: 'c_fill,w_256,h_256,f_auto,q_auto'
+  };
   const signature = cloudinary.utils.api_sign_request(params, apiSecret);
 
   return {
@@ -70,6 +88,7 @@ export function generateAvatarSignature(userId: string): Record<string, unknown>
     apiKey: process.env.CLOUDINARY_API_KEY,
     folder: userFolder,
     resourceType: 'image',
+    transformation: 'c_fill,w_256,h_256,f_auto,q_auto',
   };
 }
 

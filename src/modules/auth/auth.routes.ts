@@ -20,9 +20,10 @@ export default async function authRoutes(fastify: FastifyInstance): Promise<void
     return reply.code(error.statusCode || 500).send({ error: 'server_error' });
   });
 
-  const authRateLimit = { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } };
+  const authRateLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+  const strictRateLimit = { config: { rateLimit: { max: 3, timeWindow: '1 hour' } } };
 
-  fastify.post('/register', { schema: registerSchema, ...authRateLimit }, authController.register);
+  fastify.post('/register', { schema: registerSchema, ...strictRateLimit }, authController.register);
   fastify.post('/login', { schema: loginSchema, ...authRateLimit }, authController.login);
   fastify.post('/check-identifier', { schema: checkIdentifierSchema, ...authRateLimit }, authController.checkIdentifier);
   fastify.post('/refresh', { schema: refreshSchema }, authController.refresh);

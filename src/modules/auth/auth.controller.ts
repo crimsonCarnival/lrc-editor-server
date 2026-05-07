@@ -20,7 +20,7 @@ function extractDeviceId(req: FastifyRequest, reply: FastifyReply): string | nul
 export async function register(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const deviceId = extractDeviceId(req, reply);
   if (!deviceId) return;
-  const result = await authService.register(req.body as { username?: string; email?: string; password: string }, (req.server as any).jwt, req.ip, deviceId);
+  const result = await authService.register(req.body as { username?: string; email?: string; password: string; recaptchaToken?: string }, (req.server as any).jwt, req.ip, deviceId);
   if (result.error) {
     return reply.code(result.status || 500).send({ error: result.error, code: result.code });
   }
@@ -30,7 +30,7 @@ export async function register(req: FastifyRequest, reply: FastifyReply): Promis
 export async function login(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const deviceId = extractDeviceId(req, reply);
   if (!deviceId) return;
-  const result = await authService.login(req.body as { identifier: string; password: string }, (req.server as any).jwt, req.ip, deviceId);
+  const result = await authService.login(req.body as { identifier: string; password: string; recaptchaToken?: string }, (req.server as any).jwt, req.ip, deviceId);
   if (result.error) {
     return reply.code(result.status || 500).send({ error: result.error, code: result.code });
   }

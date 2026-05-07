@@ -5,7 +5,10 @@ import * as projectService from './projects.service.js';
  * POST /projects — create a new project.
  */
 export async function create(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const result = await projectService.createProject(req.body, req.userId);
+  const result = await projectService.createProject(req.body, req.userId, req.ip);
+  if ('error' in result) {
+    return reply.code((result as any).status || 500).send(result);
+  }
   return reply.code(201).send(result);
 }
 

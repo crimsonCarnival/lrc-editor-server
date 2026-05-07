@@ -4,7 +4,15 @@ import { signatureSchema, createMediaSchema, updateMediaSchema, listMediaSchema 
 
 export default async function uploadRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post('/signature', { schema: signatureSchema, preHandler: [fastify.requireActiveUser] }, uploadController.audioSignature);
-  fastify.post('/avatar-signature', { preHandler: [fastify.requireAuth] }, uploadController.avatarSignature);
+  fastify.post('/avatar-signature', { 
+    preHandler: [fastify.requireAuth],
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 hour'
+      }
+    }
+  }, uploadController.avatarSignature);
   fastify.get('/media', { schema: listMediaSchema, preHandler: [fastify.requireActiveUser] }, uploadController.listMedia);
   fastify.get('/media/:id', { preHandler: [fastify.requireActiveUser] }, uploadController.getMedia);
   fastify.post('/media', { schema: createMediaSchema, preHandler: [fastify.requireActiveUser] }, uploadController.createMedia);

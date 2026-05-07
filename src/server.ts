@@ -51,9 +51,11 @@ async function build() {
     schema,
     resolvers,
     loaders,
-    context: (request: FastifyRequest) => ({
-      userId: request.userId,
-    }),
+    context: async (request: FastifyRequest) => {
+      // Run optionalAuth so request.userId is populated for authenticated GraphQL requests.
+      await (app as any).optionalAuth(request);
+      return { userId: request.userId, ip: request.ip };
+    },
     graphiql: process.env.NODE_ENV === 'development',
   });
 

@@ -1,0 +1,92 @@
+import type { FastifyRequest, FastifyReply } from 'fastify';
+import * as projectService from './projects.service.js';
+
+/**
+ * POST /projects — create a new project.
+ */
+export async function create(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const result = await projectService.createProject(req.body, req.userId);
+  return reply.code(201).send(result);
+}
+
+/**
+ * GET /projects — list user's projects.
+ */
+export async function list(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const projects = await projectService.listProjects(req.userId!);
+  return reply.send({ projects });
+}
+
+/**
+ * GET /projects/:id — get a single project.
+ */
+export async function get(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const project = await projectService.getProject((req.params as Record<string, string>).id);
+  if (!project) {
+    return reply.code(404).send({ error: 'Project not found' });
+  }
+  return reply.send({ project });
+}
+
+/**
+ * PUT /projects/:id — full project update.
+ */
+export async function update(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const result = await projectService.updateProject(
+    (req.params as Record<string, string>).id,
+    req.body as Record<string, unknown>,
+    req.userId
+  );
+  if (result.error) {
+    return reply.code(result.status || 500).send({ error: result.error });
+  }
+  return reply.send(result);
+}
+
+/**
+ * PATCH /projects/:id — partial project update.
+ */
+export async function patch(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const result = await projectService.patchProject(
+    (req.params as Record<string, string>).id,
+    req.body as Record<string, unknown>,
+    req.userId
+  );
+  if (result.error) {
+    return reply.code(result.status || 500).send({ error: result.error });
+  }
+  return reply.send(result);
+}
+
+/**
+ * DELETE /projects/:id — delete a project.
+ */
+export async function remove(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const result = await projectService.deleteProject((req.params as Record<string, string>).id, req.userId!);
+  if (result.error) {
+    return reply.code(result.status || 500).send({ error: result.error });
+  }
+  return reply.code(204).send();
+}
+
+/**
+ * GET /projects/share/:id — get a project for public sharing (read-only).
+ */
+export async function getShare(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const project = await projectService.getShareProject((req.params as Record<string, string>).id);
+  if (!project) {
+    return reply.code(404).send({ error: 'Project not found' });
+  }
+  return reply.send({ project });
+}
+
+/**
+ * POST /projects/clone/:id — clone a project (requires authentication).
+ */
+export async function clone(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const result = await projectService.cloneProject((req.params as Record<string, string>).id, req.userId!);
+  if (result.error) {
+    return reply.code(result.status || 500).send({ error: result.error });
+  }
+  return reply.code(201).send(result);
+}

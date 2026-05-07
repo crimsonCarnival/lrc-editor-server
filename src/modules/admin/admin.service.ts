@@ -1,0 +1,346 @@
+import User from '../../db/user.model.js';
+import BannedIp from './bannedIp.model.js';
+import BannedDevice from './bannedDevice.model.js';
+import Project from '../projects/project.model.js';
+import Upload from '../uploads/upload.model.js';
+import AdminLog from './adminLog.model.js';
+import type { AdminLogEntry } from '../../types/index.js';
+
+export async function listUsers(query: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  const { page = 1, limit = 50, search = '', role = '', status = '' } = query as Record<string, string | number>;
+
+  const filter: Record<string, unknown> = {};
+  if (search) {
+    filter.$or = [
+      { username: new RegExp(search as string, 'i') },
+      { email: new RegExp(search as string, 'i') },
+    ];
+  }
+
+  if (role) filter.role = role;
+  if (status) {
+    if (status === 'banned') filter.isBanned = true;
+    if (status === 'active') filter.isBanned = false;
+    if (status === 'deleted') filter.isDeleted = true;
+    if (status === 'verified') filter.isVerified = true;
+    if (status === 'pending') filter.appealStatus = 'pending';
+    if (status === 'premium') {
+      (filter as Record<string, unknown>)['spotify.isPremium'] = true;
+    }
+  }
+
+  const total = await User.countDocuments(filter);
+  const usersRaw = await User.find(filter)
+    .select('-passwordHash -spotify.accessToken -spotify.refreshToken -deviceIds')
+    .sort({ createdAt: -1 })
+    .skip((Number(page) - 1) * Number(limit))
+    .limit(Number(limit))
+    .lean();
+
+  if (usersRaw.length === 0) {
+    return { users: [], total, page: Number(page), limit: Number(limit) };
+  }
+
+  const userIds = usersRaw.map((u: Record<string, unknown>) => u._id);
+
+  const [projectCounts, uploadCounts] = await Promise.all([
+    Project.aggregate([
+      { $match: { userId: { $in: userIds } } },
+      { $group: { _id: '$userId', count: { $sum: 1 } } },
+    ]),
+    Upload.aggregate([
+      { $match: { userId: { $in: userIds } } },
+      { $group: { _id: '$userId', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const projectCountMap = new Map((projectCounts as { _id: string; count: number }[]).map(r => [r._id.toString(), r.count]));
+  const uploadCountMap = new Map((uploadCounts as { _id: string; count: number }[]).map(r => [r._id.toString(), r.count]));
+
+  const users = usersRaw.map((u: Record<string, unknown>) => ({
+    ...u,
+    id: (u._id as Record<string, unknown>).toString(),
+    projectCount: projectCountMap.get((u._id as Record<string, unknown>).toString()) ?? 0,
+    uploadCount: uploadCountMap.get((u._id as Record<string, unknown>).toString()) ?? 0,
+  }));
+
+  return { users, total, page: Number(page), limit: Number(limit) };
+}
+
+export async function getStats(): Promise<Record<string, unknown>> {
+  const [
+    totalUsers,
+    bannedUsers,
+    pendingAppeals,
+    deletedUsers,
+    totalProjects,
+    totalUploads,
+  ] = await Promise.all([
+    User.countDocuments(),
+    User.countDocuments({ isBanned: true }),
+    User.countDocuments({ appealStatus: 'pending' }),
+    User.countDocuments({ isDeleted: true }),
+    Project.countDocuments({}),
+    Upload.countDocuments(),
+  ]);
+
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const activeUsers = await User.countDocuments({ updatedAt: { $gte: yesterday } });
+
+  return {
+    totalUsers,
+    bannedUsers,
+    pendingAppeals,
+    deletedUsers,
+    activeUsers,
+    totalProjects,
+    totalUploads,
+  };
+}
+
+export async function toggleBan(userId: string, banStatus: boolean, reason: string | null = null, bannedUntil: string | null = null, banIp = false, banDevice = false, adminId: string | null = null): Promise<Record<string, unknown>> {
+  const user = await User.findById(userId);
+  if (!user) return { error: 'User not found', status: 404 };
+  if (user.role === 'admin') return { error: 'Cannot ban an admin', status: 403 };
+
+  user.isBanned = banStatus;
+  if (banStatus) {
+    user.bannedAt = new Date();
+    user.banReason = reason;
+    user.bannedUntil = bannedUntil ? new Date(bannedUntil) : null;
+
+    if (banIp && user.lastIp) {
+      const isLoopback = user.lastIp === '127.0.0.1' || user.lastIp === '::1' || user.lastIp === '::ffff:127.0.0.1';
+
+      if (!isLoopback) {
+        await BannedIp.findOneAndUpdate(
+          { ip: user.lastIp },
+          {
+            ip: user.lastIp,
+            reason: 'Associated with banned user: ' + user.username,
+            userId: user._id,
+            bannedBy: adminId,
+          },
+          { upsert: true }
+        );
+      }
+    }
+
+    if (banDevice && user.deviceIds && user.deviceIds.length > 0) {
+      for (const deviceId of user.deviceIds) {
+        await BannedDevice.findOneAndUpdate(
+          { deviceId },
+          {
+            deviceId,
+            reason: 'Associated with banned user: ' + user.username,
+            userId: user._id,
+            bannedBy: adminId,
+          },
+          { upsert: true }
+        );
+      }
+    }
+  } else {
+    user.bannedAt = null;
+    user.banReason = null;
+    user.banAppeal = null;
+    user.appealAt = null;
+    user.appealStatus = 'none';
+    user.bannedUntil = null;
+    user.appealResolvedAt = new Date();
+    user.showUnbanMessage = true;
+  }
+
+  await user.save();
+
+  if (adminId) {
+    const admin = await User.findById(adminId);
+    await logAdminAction({
+      adminId,
+      adminName: admin?.username || 'System',
+      action: banStatus ? 'ban_user' : 'unban_user',
+      targetId: user._id.toString(),
+      targetName: user.username,
+      details: banStatus ? 'Reason: ' + reason + (banIp ? ' (IP Banned)' : '') + (banDevice ? ' (Device Banned)' : '') : 'Appeal approved / Manual unban',
+    });
+  }
+
+  return { success: true, user: user.toPublic() };
+}
+
+export async function rejectAppeal(userId: string, adminId: string | null = null): Promise<Record<string, unknown>> {
+  const user = await User.findById(userId);
+  if (!user) return { error: 'User not found', status: 404 };
+
+  user.appealStatus = 'rejected' as unknown as typeof user.appealStatus;
+  user.appealAt = null as unknown as Date;
+  user.appealResolvedAt = new Date();
+
+  await user.save();
+
+  if (adminId) {
+    const admin = await User.findById(adminId);
+    await logAdminAction({
+      adminId,
+      adminName: admin?.username || 'System',
+      action: 'reject_appeal',
+      targetId: user._id.toString(),
+      targetName: user.username,
+      details: 'Ban appeal rejected',
+    });
+  }
+
+  return { success: true, user: user.toPublic() };
+}
+
+export async function changeUserRole(userId: string, newRole: string, adminId: string | null = null): Promise<Record<string, unknown>> {
+  const user = await User.findById(userId);
+  if (!user) return { error: 'User not found', status: 404 };
+  if (!['user', 'admin'].includes(newRole)) return { error: 'Invalid role', status: 400 };
+
+  user.role = newRole as 'user' | 'admin';
+  await user.save();
+
+  if (adminId) {
+    const admin = await User.findById(adminId);
+    await logAdminAction({
+      adminId,
+      adminName: admin?.username || 'System',
+      action: 'change_role',
+      targetId: user._id.toString(),
+      targetName: user.username,
+      details: 'New role: ' + newRole,
+    });
+  }
+
+  return { success: true, user: user.toPublic() };
+}
+
+export async function deleteUser(userId: string, adminId: string | null = null): Promise<Record<string, unknown>> {
+  const user = await User.findById(userId);
+  if (!user) return { error: 'User not found', status: 404 };
+  if (user.role === 'admin') return { error: 'Cannot delete an admin', status: 403 };
+
+  user.deletedAt = new Date();
+  user.isDeleted = true;
+  user.bannedUntil = null;
+  user.banReason = null;
+  user.banAppeal = null;
+  user.appealAt = null;
+  user.appealStatus = 'none';
+
+  await user.save();
+
+  if (adminId) {
+    const admin = await User.findById(adminId);
+    await logAdminAction({
+      adminId,
+      adminName: admin?.username || 'System',
+      action: 'delete_user',
+      targetId: user._id.toString(),
+      targetName: user.username,
+      details: 'Soft deletion',
+    });
+  }
+
+  return { success: true };
+}
+
+export async function reactivateUser(userId: string, adminId: string | null = null): Promise<Record<string, unknown>> {
+  const user = await User.findById(userId);
+  if (!user) return { error: 'User not found', status: 404 };
+
+  user.isDeleted = false;
+  user.deletedAt = null;
+
+  await user.save();
+
+  if (adminId) {
+    const admin = await User.findById(adminId);
+    await logAdminAction({
+      adminId,
+      adminName: admin?.username || 'System',
+      action: 'reactivate_user',
+      targetId: user._id.toString(),
+      targetName: user.username,
+      details: 'Account reactivated',
+    });
+  }
+
+  return { success: true, user: user.toPublic() };
+}
+
+export async function listBannedIps(): Promise<Record<string, unknown>[]> {
+  const ips = await BannedIp.find().sort({ createdAt: -1 }).lean();
+  return ips.map((ip: Record<string, unknown>) => ({ ...ip, id: (ip._id as Record<string, unknown>).toString() }));
+}
+
+export async function blockIp(ip: string, reason: string, adminId: string): Promise<Record<string, unknown>> {
+  const existing = await BannedIp.findOne({ ip });
+  if (existing) return { error: 'IP already banned', status: 409 };
+
+  const bannedIp = await BannedIp.create({
+    ip,
+    reason,
+    bannedBy: adminId,
+  });
+  return { success: true, bannedIp };
+}
+
+export async function unblockIp(ipId: string): Promise<Record<string, unknown>> {
+  await BannedIp.findByIdAndDelete(ipId);
+  return { success: true };
+}
+
+export async function listBannedDevices(): Promise<Record<string, unknown>[]> {
+  const devices = await BannedDevice.find().sort({ createdAt: -1 }).lean();
+  return devices.map((d: Record<string, unknown>) => ({ ...d, id: (d._id as Record<string, unknown>).toString() }));
+}
+
+export async function blockDevice(deviceId: string, reason: string, adminId: string): Promise<Record<string, unknown>> {
+  const existing = await BannedDevice.findOne({ deviceId });
+  if (existing) return { error: 'Device already banned', status: 409 };
+
+  const bannedDevice = await BannedDevice.create({
+    deviceId,
+    reason,
+    bannedBy: adminId,
+  });
+  return { success: true, bannedDevice };
+}
+
+export async function unblockDevice(deviceIdId: string): Promise<Record<string, unknown>> {
+  await BannedDevice.findByIdAndDelete(deviceIdId);
+  return { success: true };
+}
+
+export async function listAdminLogs(query: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  const { page = 1, limit = 100 } = query as Record<string, number>;
+  const logs = await AdminLog.find()
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(Number(limit))
+    .populate('adminId', 'username email')
+    .lean();
+  return { logs, page, limit };
+}
+
+export async function logAdminAction({ adminId, adminName, action, targetId, targetName, details, ip }: {
+  adminId: string;
+  adminName: string;
+  action: string;
+  targetId?: string;
+  targetName?: string;
+  details?: string;
+  ip?: string;
+}): Promise<void> {
+  await AdminLog.create({
+    adminId,
+    adminName,
+    action,
+    targetId,
+    targetName,
+    details,
+    ip,
+  });
+}
